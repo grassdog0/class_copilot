@@ -7,7 +7,7 @@ import websockets
 
 
 async def test():
-    async with websockets.connect("ws://localhost:8765/ws") as ws:
+    async with websockets.connect("ws://localhost:29037/ws") as ws:
         # Receive initial status
         msg = json.loads(await ws.recv())
         asr = msg["data"].get("auto_stop_remaining", "MISSING")

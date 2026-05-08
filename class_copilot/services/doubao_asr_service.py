@@ -254,6 +254,10 @@ class DoubaoRealtimeASRService:
         return self._disconnected
 
     @property
+    def last_error_code(self):
+        return self._last_error_code
+
+    @property
     def is_permanent_error(self) -> bool:
         return self._last_error_code in (401, 403, 1002)
 

@@ -311,10 +311,19 @@ class SessionManager:
                 if self.asr_service.is_disconnected:
                     # 不可恢复的错误（如 401 认证失败），直接停止
                     if self.asr_service.is_permanent_error:
-                        asr_logger.error("ASR 认证失败 (API Key 无效)，停止监听")
+                        error_code = getattr(self.asr_service, "last_error_code", None)
+                        if error_code == "data_inspection_failed":
+                            message = "ASR 内容安全检查未通过，已停止监听"
+                            asr_logger.error("ASR 内容安全检查未通过，停止监听")
+                        elif error_code in (401, 403):
+                            message = "ASR 认证失败，请检查 API Key 配置"
+                            asr_logger.error("ASR 认证失败 (API Key 无效)，停止监听")
+                        else:
+                            message = f"ASR 发生不可恢复错误，已停止监听: {error_code}"
+                            asr_logger.error("ASR 不可恢复错误: {}", error_code)
                         await self._broadcast("notification", {
                             "type": "error",
-                            "message": "ASR 认证失败，请检查 API Key 配置",
+                            "message": message,
                         })
                         await self.stop_listening()
                         return
@@ -409,6 +418,7 @@ class SessionManager:
                 return True
             except Exception as e:
                 asr_logger.error("ASR 重连失败 ({}/{}): {}", attempt + 1, max_retries, e)
+                await self.asr_service.stop()
                 await asyncio.sleep(2 ** attempt)
 
         asr_logger.error("ASR 重连全部失败，停止监听")

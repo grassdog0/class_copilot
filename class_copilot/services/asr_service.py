@@ -100,49 +100,65 @@ class RealtimeASRService:
         self._disconnected = False
         self._last_error_code: int | None = None
 
+    async def _cleanup_connection(self):
+        conversation = self._conversation
+        self._conversation = None
+        if conversation:
+            try:
+                await asyncio.to_thread(conversation.close)
+            except Exception:
+                pass
+        self._callback = None
+        self._running = False
+
     async def start(self, hot_words: str = "", language: str = "zh"):
         """启动实时 ASR"""
         if self._running:
             asr_logger.warning("ASR 已在运行中")
             return
 
-        loop = asyncio.get_event_loop()
-        self._callback = _QwenASRCallback(loop, self.result_queue, on_disconnect=self._on_asr_disconnect)
+        try:
+            loop = asyncio.get_event_loop()
+            self._callback = _QwenASRCallback(loop, self.result_queue, on_disconnect=self._on_asr_disconnect)
 
-        # 语言映射（qwen3-asr 支持 BCP-47 风格的简写）
-        lang_map = {"zh": "zh", "en": "en"}
+            # 语言映射（qwen3-asr 支持 BCP-47 风格的简写）
+            lang_map = {"zh": "zh", "en": "en"}
 
-        self._conversation = OmniRealtimeConversation(
-            model=settings.asr_model,
-            callback=self._callback,
-            api_key=settings.dashscope_api_key,
-        )
+            self._conversation = OmniRealtimeConversation(
+                model=settings.asr_model,
+                callback=self._callback,
+                api_key=settings.dashscope_api_key,
+            )
 
-        # 在线程中建连（WebSocket 是同步阻塞的）
-        await asyncio.to_thread(self._conversation.connect)
+            # 在线程中建连（WebSocket 是同步阻塞的）
+            await asyncio.to_thread(self._conversation.connect)
 
-        # 配置 session: 只输出文本，开启 VAD 和转写
-        transcription_params = TranscriptionParams(
-            language=lang_map.get(language, "zh"),
-            sample_rate=settings.sample_rate,
-            input_audio_format="pcm",
-        )
-        # 热词通过 corpus_text 传递（官方推荐方式）
-        if hot_words:
-            transcription_params.corpus_text = hot_words
+            # 配置 session: 只输出文本，开启 VAD 和转写
+            transcription_params = TranscriptionParams(
+                language=lang_map.get(language, "zh"),
+                sample_rate=settings.sample_rate,
+                input_audio_format="pcm",
+            )
+            # 热词通过 corpus_text 传递（官方推荐方式）
+            if hot_words:
+                transcription_params.corpus_text = hot_words
 
-        await asyncio.to_thread(
-            self._conversation.update_session,
-            output_modalities=[MultiModality.TEXT],
-            transcription_params=transcription_params,
-            enable_turn_detection=True,
-            turn_detection_type="server_vad",
-        )
+            await asyncio.to_thread(
+                self._conversation.update_session,
+                output_modalities=[MultiModality.TEXT],
+                transcription_params=transcription_params,
+                enable_turn_detection=True,
+                turn_detection_type="server_vad",
+            )
 
-        self._running = True
-        self._disconnected = False
-        self._last_error_code = None
-        asr_logger.info("实时 ASR 已启动, 模型={}, 语言={}", settings.asr_model, language)
+            self._running = True
+            self._disconnected = False
+            self._last_error_code = None
+            asr_logger.info("实时 ASR 已启动, 模型={}, 语言={}", settings.asr_model, language)
+        except Exception:
+            await self._cleanup_connection()
+            self._disconnected = True
+            raise
 
     async def send_audio(self, audio_bytes: bytes):
         """发送 PCM 音频帧（base64 编码后发送）"""
@@ -164,14 +180,12 @@ class RealtimeASRService:
                 if not self._disconnected:
                     asr_logger.error("停止ASR异常: {}", e)
             finally:
-                try:
-                    self._conversation.close()
-                except Exception:
-                    pass
-                self._running = False
+                await self._cleanup_connection()
                 self._disconnected = False
-                self._conversation = None
                 asr_logger.info("实时 ASR 已停止")
+        elif self._conversation:
+            await self._cleanup_connection()
+            self._disconnected = False
 
     def _on_asr_disconnect(self, error_code=None):
         """ASR 服务端断开回调"""
@@ -188,6 +202,10 @@ class RealtimeASRService:
     @property
     def is_disconnected(self) -> bool:
         return self._disconnected
+
+    @property
+    def last_error_code(self):
+        return self._last_error_code
 
     @property
     def is_permanent_error(self) -> bool:

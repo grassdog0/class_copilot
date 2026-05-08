@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     """全局配置"""
 
     # 服务器
-    server_port: int = Field(default=8765, description="服务端口")
+    server_port: int = Field(default=29037, description="服务端口")
 
     # 数据存储
     data_dir: str = Field(

@@ -28,6 +28,7 @@ from class_copilot.logger import asr_logger
 
 # 轮换时保留的最近转写条数上限
 _RECENT_FINALS_LIMIT = 30
+_PERMANENT_ERROR_CODES = {401, 403, "data_inspection_failed"}
 
 
 def _build_asr_instructions(language: str = "zh", hot_words: str = "",
@@ -227,6 +228,8 @@ class _QwenOmniASRCallback(OmniRealtimeCallback):
                 asr_logger.error("Omni ASR 错误事件: code={}, msg={}", err_code, err_msg)
                 if err_code in ("invalid_api_key", "authentication_error"):
                     self._notify_disconnect(error_code=401)
+                elif err_code in _PERMANENT_ERROR_CODES:
+                    self._notify_disconnect(error_code=err_code)
 
             # ── session 事件 ──
             elif event_type == "session.created":
@@ -275,7 +278,7 @@ class QwenOmniRealtimeASRService:
         self.result_queue: asyncio.Queue = asyncio.Queue()
         self._running = False
         self._disconnected = False
-        self._last_error_code: int | None = None
+        self._last_error_code: int | str | None = None
         # 缓存 start() 参数，用于轮换时重建
         self._hot_words: str = ""
         self._language: str = "zh"
@@ -284,11 +287,25 @@ class QwenOmniRealtimeASRService:
         # 轮换锁，防止并发轮换
         self._rotating = False
 
+    async def _cleanup_connection(self):
+        conversation = self._conversation
+        self._conversation = None
+        if conversation:
+            try:
+                await asyncio.to_thread(conversation.close)
+            except Exception:
+                pass
+        self._callback = None
+        self._running = False
+        self._session_started_at = 0
+
     async def pre_connect(self):
         """预连接 WebSocket（可在准备热词等操作的同时并行调用以减少启动延迟）"""
         if self._running or self._conversation:
             return
         t0 = time.monotonic()
+        self._disconnected = False
+        self._last_error_code = None
         loop = asyncio.get_event_loop()
         self._callback = _QwenOmniASRCallback(loop, self.result_queue, on_disconnect=self._on_asr_disconnect)
 
@@ -298,7 +315,12 @@ class QwenOmniRealtimeASRService:
             callback=self._callback,
             api_key=settings.dashscope_api_key,
         )
-        await asyncio.to_thread(self._conversation.connect)
+        try:
+            await asyncio.to_thread(self._conversation.connect)
+        except Exception:
+            await self._cleanup_connection()
+            self._disconnected = True
+            raise
         t1 = time.monotonic()
         asr_logger.info("Omni ASR connect() 耗时: {:.2f}s", t1 - t0)
 
@@ -313,53 +335,60 @@ class QwenOmniRealtimeASRService:
             asr_logger.warning("Omni ASR 已在运行中")
             return
 
-        # 若未预连接，在此处连接
-        if not self._conversation:
-            await self.pre_connect()
-        t1 = time.monotonic()
-
-        # 构建转写引导提示词
-        instructions = _build_asr_instructions(
-            language=language, hot_words=hot_words, prior_context=prior_context)
-
-        # 手动构建 session.update 消息，绕过 SDK 的 update_session()
-        # SDK 总会将 voice 字段发送为 null 或具体值，而 omni-realtime 模型
-        # 在仅输出文本时也会校验 voice 有效性。手动构建跳过 voice 字段。
-        session_config = {
-            "modalities": ["text"],
-            "input_audio_format": "pcm",
-            "instructions": instructions,
-            # 不设置 input_audio_transcription，默认不启用旁路转写通道
-            "turn_detection": {
-                "type": "server_vad",
-                "threshold": settings.vad_threshold,
-                "prefix_padding_ms": settings.vad_prefix_padding_ms,
-                "silence_duration_ms": settings.vad_silence_duration_ms,
-            },
-        }
-        session_update_msg = json.dumps({
-            "event_id": "event_" + uuid.uuid4().hex,
-            "type": "session.update",
-            "session": session_config,
-        })
-        await asyncio.to_thread(self._conversation.send_raw, session_update_msg)
-
-        # 等待 session.updated 确认，避免在配置生效前发送音频（音频会被丢弃）
         try:
-            await asyncio.wait_for(self._callback._session_ready.wait(), timeout=10.0)
-        except asyncio.TimeoutError:
-            asr_logger.warning("等待 session.updated 超时 (10s)，继续运行")
-        t2 = time.monotonic()
-        asr_logger.info("Omni ASR session.update 确认耗时: {:.2f}s", t2 - t1)
+            # 若未预连接，在此处连接
+            if not self._conversation:
+                await self.pre_connect()
+            if not self._conversation:
+                raise RuntimeError("Omni ASR 连接未建立")
+            t1 = time.monotonic()
 
-        self._callback._start_ts = time.monotonic()
-        self._running = True
-        self._disconnected = False
-        self._last_error_code = None
-        self._hot_words = hot_words
-        self._language = language
-        self._session_started_at = time.monotonic()
-        asr_logger.info("Omni 实时 ASR 已启动, 模型={}, 语言={}", settings.asr_model, language)
+            # 构建转写引导提示词
+            instructions = _build_asr_instructions(
+                language=language, hot_words=hot_words, prior_context=prior_context)
+
+            # 手动构建 session.update 消息，绕过 SDK 的 update_session()
+            # SDK 总会将 voice 字段发送为 null 或具体值，而 omni-realtime 模型
+            # 在仅输出文本时也会校验 voice 有效性。手动构建跳过 voice 字段。
+            session_config = {
+                "modalities": ["text"],
+                "input_audio_format": "pcm",
+                "instructions": instructions,
+                # 不设置 input_audio_transcription，默认不启用旁路转写通道
+                "turn_detection": {
+                    "type": "server_vad",
+                    "threshold": settings.vad_threshold,
+                    "prefix_padding_ms": settings.vad_prefix_padding_ms,
+                    "silence_duration_ms": settings.vad_silence_duration_ms,
+                },
+            }
+            session_update_msg = json.dumps({
+                "event_id": "event_" + uuid.uuid4().hex,
+                "type": "session.update",
+                "session": session_config,
+            })
+            await asyncio.to_thread(self._conversation.send_raw, session_update_msg)
+
+            # 等待 session.updated 确认，避免在配置生效前发送音频（音频会被丢弃）
+            try:
+                await asyncio.wait_for(self._callback._session_ready.wait(), timeout=10.0)
+            except asyncio.TimeoutError:
+                asr_logger.warning("等待 session.updated 超时 (10s)，继续运行")
+            t2 = time.monotonic()
+            asr_logger.info("Omni ASR session.update 确认耗时: {:.2f}s", t2 - t1)
+
+            self._callback._start_ts = time.monotonic()
+            self._running = True
+            self._disconnected = False
+            self._last_error_code = None
+            self._hot_words = hot_words
+            self._language = language
+            self._session_started_at = time.monotonic()
+            asr_logger.info("Omni 实时 ASR 已启动, 模型={}, 语言={}", settings.asr_model, language)
+        except Exception:
+            await self._cleanup_connection()
+            self._disconnected = True
+            raise
 
     async def send_audio(self, audio_bytes: bytes):
         """发送 PCM 音频帧（base64 编码后发送）"""
@@ -374,25 +403,17 @@ class QwenOmniRealtimeASRService:
 
     async def stop(self):
         """停止 ASR — 直接关闭 WebSocket 连接，无需 end_session()"""
-        if self._conversation and self._running:
-            try:
-                # 官方示例直接 close()，无需 end_session()（后者会等待 session.finished 导致延迟）
-                await asyncio.to_thread(self._conversation.close)
-            except Exception as e:
-                if not self._disconnected:
-                    asr_logger.error("关闭 Omni ASR 异常: {}", e)
-            finally:
-                self._running = False
-                self._disconnected = False
-                self._conversation = None
-                asr_logger.info("Omni 实时 ASR 已停止")
+        if self._conversation or self._running:
+            await self._cleanup_connection()
+            self._disconnected = False
+            asr_logger.info("Omni 实时 ASR 已停止")
 
     def _on_asr_disconnect(self, error_code=None):
         """ASR 服务端断开回调"""
+        if error_code is not None:
+            self._last_error_code = error_code
         if not self._disconnected:
             self._disconnected = True
-            if error_code is not None:
-                self._last_error_code = error_code
             asr_logger.warning("Omni ASR 服务端连接断开 (error_code={})", error_code)
 
     @property
@@ -404,9 +425,13 @@ class QwenOmniRealtimeASRService:
         return self._disconnected
 
     @property
+    def last_error_code(self):
+        return self._last_error_code
+
+    @property
     def is_permanent_error(self) -> bool:
         """是否为不可恢复的错误（如认证失败）"""
-        return self._last_error_code in (401, 403)
+        return self._last_error_code in _PERMANENT_ERROR_CODES
 
     @property
     def last_final_elapsed(self) -> float:
@@ -449,7 +474,9 @@ class QwenOmniRealtimeASRService:
             await asyncio.to_thread(self._conversation.send_raw, create_msg)
             # 重置计时，避免在 ASR 回复前重复触发
             if self._callback:
-                self._callback._last_final_at = time.monotonic()
+                now = time.monotonic()
+                self._callback._last_final_at = now
+                self._callback._last_text_activity_at = now
             asr_logger.info("强制提交音频缓冲 (force_commit)")
         except Exception as e:
             asr_logger.warning("force_commit 异常: {}", e)
