@@ -18,7 +18,7 @@ export function ModelSection() {
             模型与回答
           </span>
         }
-        description="实时 ASR 模型仅在下次会话生效；答案档位与语言立即生效。"
+        description="实时 ASR 模型仅在下次会话生效；自动参考答案输出风格与语言立即生效。"
       />
       <CardBody>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -29,20 +29,23 @@ export function ModelSection() {
                 void update({ asr_model: event.target.value as AsrModel });
               }}
             >
-              <option value="qwen3.5-omni-flash-realtime">Flash（默认 / 性价比）</option>
-              <option value="qwen3.5-omni-plus-realtime">Plus（更高质量）</option>
+              <option value="qwen3.5-omni-flash-realtime">qwen3.5-omni-flash-realtime</option>
+              <option value="qwen3.5-omni-plus-realtime">qwen3.5-omni-plus-realtime</option>
             </Select>
           </Field>
-          <Field label="答案档位">
+          <Field label="自动参考答案输出风格">
             <Select
               value={settings.auto_answer_type}
               onChange={(event) => {
                 void update({ auto_answer_type: event.target.value as AnswerType });
               }}
             >
-              <option value="brief">简要</option>
-              <option value="detailed">详细</option>
+              <option value="brief">简要输出</option>
+              <option value="detailed">详细输出</option>
             </Select>
+            <p className="text-xs text-slate-500">
+              作为提示词注入到自动参考答案生成模型，控制检测到课堂问题后的回答详略；不影响主动提问聊天。
+            </p>
           </Field>
           <Field label="语言">
             <Select

@@ -3,6 +3,8 @@ import { Route, Routes } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { ToastViewport } from "@/components/Toast";
 import { HomePage } from "@/pages/HomePage";
+import { QAPage } from "@/pages/QAPage";
+import { ChatPage } from "@/pages/ChatPage";
 import { SessionsPage } from "@/pages/SessionsPage";
 import { SessionDetailPage } from "@/pages/SessionDetailPage";
 import { SettingsPage } from "@/pages/SettingsPage";
@@ -119,6 +121,8 @@ export default function App() {
       <Routes>
         <Route element={<AppLayout />}>
           <Route index element={<HomePage />} />
+          <Route path="qa" element={<QAPage />} />
+          <Route path="chat" element={<ChatPage />} />
           <Route path="sessions" element={<SessionsPage />} />
           <Route path="sessions/:id" element={<SessionDetailPage />} />
           <Route path="settings" element={<SettingsPage />} />

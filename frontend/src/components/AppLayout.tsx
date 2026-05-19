@@ -1,10 +1,12 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { Headphones, History, Settings } from "lucide-react";
+import { Headphones, History, MessageCircle, Settings, Sparkles } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useWsConnectionState } from "@/ws/useWebSocket";
 
 const NAV_ITEMS = [
   { to: "/", label: "监听", icon: Headphones, end: true },
+  { to: "/qa", label: "问答", icon: Sparkles, end: false },
+  { to: "/chat", label: "提问", icon: MessageCircle, end: false },
   { to: "/sessions", label: "会话", icon: History, end: false },
   { to: "/settings", label: "设置", icon: Settings, end: false },
 ];

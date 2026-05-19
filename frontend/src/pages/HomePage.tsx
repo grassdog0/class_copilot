@@ -6,9 +6,6 @@ import { CourseSelect } from "@/components/home/CourseSelect";
 import { ListenControls } from "@/components/home/ListenControls";
 import { MicLevelMeter } from "@/components/home/MicLevelMeter";
 import { TranscriptStream } from "@/components/home/TranscriptStream";
-import { QuestionList } from "@/components/home/QuestionList";
-import { AnswerCard } from "@/components/home/AnswerCard";
-import { ChatPanel } from "@/components/home/ChatPanel";
 
 export function HomePage() {
   const isListening = useSessionStore((state) => state.isListening);
@@ -36,24 +33,16 @@ export function HomePage() {
       ) : null}
 
       <section className="flex flex-col gap-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-wrap items-end gap-6">
-          <CourseSelect disabled={isListening} />
-          <ListenControls />
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="flex flex-wrap items-end gap-6">
+            <CourseSelect disabled={isListening} />
+            <ListenControls />
+          </div>
+          <MicLevelMeter active={isListening} />
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        <div className="space-y-4 lg:col-span-4">
-          <MicLevelMeter active={isListening} />
-          <QuestionList />
-        </div>
-        <div className="space-y-4 lg:col-span-8">
-          <TranscriptStream isListening={isListening} />
-          <AnswerCard />
-        </div>
-      </div>
-
-      <ChatPanel />
+      <TranscriptStream isListening={isListening} />
     </div>
   );
 }

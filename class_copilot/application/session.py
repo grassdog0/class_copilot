@@ -26,6 +26,7 @@ from class_copilot.infrastructure.asr.qwen_omni import QwenOmniRealtimeASR
 from class_copilot.infrastructure.audio.capture import AudioCapture
 from class_copilot.infrastructure.persistence.repositories import (
     CourseRepository,
+    QuestionRepository,
     SessionRepository,
     TranscriptionRepository,
 )
@@ -143,6 +144,37 @@ class ASRPipeline:
         async with self.sessionmaker() as db:
             context = await TranscriptionRepository(db).recent_text(self.session_id, limit=20)
         await self._maybe_detect_question(context=context, source="manual")
+
+    async def force_answer(self) -> None:
+        async with self.sessionmaker() as db:
+            context = await TranscriptionRepository(db).recent_text(self.session_id, limit=20)
+            question_text = "请根据当前课堂内容生成参考答案"
+            question = await QuestionRepository(db).create(
+                session_id=self.session_id,
+                question_text=question_text,
+                source="manual",
+                confidence=1.0,
+                context_text=context,
+            )
+            await self.broadcast(
+                {
+                    "type": "question_detected",
+                    "data": {
+                        "question_id": question.id,
+                        "question_text": question.question_text,
+                        "source": question.source,
+                        "confidence": question.confidence,
+                        "context_text": question.context_text,
+                    },
+                }
+            )
+            await self.answer_generator.generate_and_store(
+                db=db,
+                question_id=question.id,
+                question_text=question.question_text,
+                context_text=question.context_text,
+                broadcast=self.broadcast,
+            )
 
     async def _maybe_detect_question(self, *, context: str, source: str) -> None:
         detected = await self.question_detector.detect(context=context, source=source)
@@ -405,6 +437,11 @@ class SessionService:
         if self._pipeline is None:
             return
         await self._pipeline.manual_detect()
+
+    async def force_answer(self) -> None:
+        if self._pipeline is None:
+            return
+        await self._pipeline.force_answer()
 
     def update_auto_stop(self, *, seconds: int, label: str = "") -> None:
         self._auto_stop.update(seconds=seconds, label=label)

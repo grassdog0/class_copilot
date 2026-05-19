@@ -45,6 +45,8 @@ async def dispatch_ws_message(message, session_service, chat_service, manager) -
             await session_service.stop_listening("stopped")
         elif message.type == "manual_detect":
             await session_service.manual_detect()
+        elif message.type == "force_answer":
+            await session_service.force_answer()
         elif message.type == "chat":
             if not session_service.state.session_id:
                 raise ConfigurationError("当前没有进行中的会话")

@@ -9,56 +9,41 @@ interface Props {
 
 export function MicLevelMeter({ active }: Props) {
   const snapshot = useMicMonitor(active);
-  const segments = useMemo(() => buildSegments(snapshot.peak), [snapshot.peak]);
 
   const dbDisplay = Number.isFinite(snapshot.db) ? snapshot.db : -120;
   const clampedDb = Math.max(-80, Math.min(0, dbDisplay));
+  const level = useMemo(() => {
+    const normalized = (clampedDb + 80) / 80;
+    return Math.max(0, Math.min(1, Math.max(snapshot.peak, normalized)));
+  }, [clampedDb, snapshot.peak]);
 
   return (
-    <div className="card">
-      <div className="card-header">
-        <div className="flex items-center gap-2">
-          <Mic size={14} className="text-slate-500" />
-          <span className="text-sm font-semibold text-slate-900">麦克风电平</span>
-        </div>
+    <div className="flex w-full max-w-[22rem] items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 sm:w-[22rem]">
+      <div className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-slate-600">
+        <Mic size={13} />
+        <span>麦克风</span>
+      </div>
+      <div className="h-2 min-w-20 flex-1 overflow-hidden rounded-full bg-slate-200">
         <div
           className={cn(
-            "text-xs font-medium",
-            snapshot.clipping ? "text-rose-600" : "text-slate-500",
+            "h-full rounded-full transition-[width,background-color]",
+            snapshot.clipping
+              ? "bg-rose-500"
+              : level > 0.75
+                ? "bg-amber-500"
+                : "bg-emerald-500",
           )}
-        >
-          {snapshot.clipping ? "削波！" : `${clampedDb.toFixed(1)} dBFS`}
-        </div>
+          style={{ width: active ? `${Math.max(2, level * 100)}%` : "0%" }}
+        />
       </div>
-      <div className="card-body">
-        <div className="flex h-3 gap-0.5">
-          {segments.map((segment, idx) => (
-            <div
-              key={idx}
-              className={cn(
-                "flex-1 rounded-sm transition-colors",
-                segment.active ? segment.color : "bg-slate-100",
-              )}
-            />
-          ))}
-        </div>
-        {!active ? (
-          <p className="mt-2 text-xs text-slate-500">监听停止时不显示电平</p>
-        ) : null}
+      <div
+        className={cn(
+          "w-16 shrink-0 text-right text-xs font-medium tabular-nums",
+          snapshot.clipping ? "text-rose-600" : "text-slate-500",
+        )}
+      >
+        {active ? (snapshot.clipping ? "削波" : `${clampedDb.toFixed(1)} dBFS`) : "未监听"}
       </div>
     </div>
   );
-}
-
-function buildSegments(peak: number): { active: boolean; color: string }[] {
-  const SEGMENT_COUNT = 24;
-  const safePeak = Math.max(0, Math.min(1, peak));
-  const filled = Math.round(safePeak * SEGMENT_COUNT);
-  return Array.from({ length: SEGMENT_COUNT }, (_, idx) => {
-    const ratio = (idx + 1) / SEGMENT_COUNT;
-    let color = "bg-emerald-500";
-    if (ratio > 0.85) color = "bg-rose-500";
-    else if (ratio > 0.7) color = "bg-amber-500";
-    return { active: idx < filled, color };
-  });
 }

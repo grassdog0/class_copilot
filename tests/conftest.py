@@ -76,6 +76,7 @@ async def app(tmp_path):
         )
         app.state.settings_service = settings_service
         app.state.llm = fake_llm
+        app.state.fake_llm = fake_llm
         app.state.connection_manager = manager
         app.state.session_service = session_service
         app.state.chat_service = chat_service

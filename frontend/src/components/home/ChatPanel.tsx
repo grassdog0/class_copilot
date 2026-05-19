@@ -33,15 +33,15 @@ export function ChatPanel() {
   };
 
   return (
-    <div className="card flex h-full flex-col">
-      <div className="card-header">
+    <div className="card flex h-full min-h-0 flex-col overflow-hidden">
+      <div className="card-header shrink-0">
         <div className="flex items-center gap-2">
           <MessageCircle size={14} className="text-slate-500" />
           <span className="text-sm font-semibold text-slate-900">主动提问</span>
         </div>
         <ModelToggle value={model} onChange={setModel} />
       </div>
-      <div ref={scrollRef} className="card-body flex-1 space-y-3 overflow-y-auto">
+      <div ref={scrollRef} className="card-body min-h-0 flex-1 space-y-3 overflow-y-auto pb-4">
         {messages.length === 0 ? (
           <p className="text-sm text-slate-500">
             {isListening
@@ -81,7 +81,7 @@ export function ChatPanel() {
           ))
         )}
       </div>
-      <div className="border-t border-slate-200 p-3">
+      <div className="sticky bottom-0 shrink-0 border-t border-slate-200 bg-white p-3">
         <div className="flex items-end gap-2">
           <textarea
             value={input}

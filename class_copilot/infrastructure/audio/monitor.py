@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import math
+import re
 import time
 from typing import Any
 
@@ -70,17 +71,40 @@ def list_audio_devices(settings) -> dict:  # noqa: ANN001
         import sounddevice as sd
 
         default_input = sd.default.device[0] if sd.default.device else None
+        hostapis = sd.query_hostapis()
+        candidates = []
         for idx, device in enumerate(sd.query_devices()):
-            if int(device.get("max_input_channels", 0)) > 0:
-                microphones.append(
-                    {
-                        "index": idx,
-                        "name": device.get("name", ""),
-                        "channels": int(device.get("max_input_channels", 0)),
-                        "sample_rate": int(device.get("default_samplerate", SAMPLE_RATE)),
-                        "is_default": idx == default_input,
-                    }
-                )
+            channels = int(device.get("max_input_channels", 0))
+            if channels <= 0:
+                continue
+            hostapi = hostapis[device["hostapi"]]["name"]
+            name = str(device.get("name", ""))
+            if _skip_microphone_device(name):
+                continue
+            candidates.append(
+                {
+                    "index": idx,
+                    "name": name,
+                    "channels": channels,
+                    "sample_rate": int(device.get("default_samplerate", SAMPLE_RATE)),
+                    "is_default": idx == default_input,
+                    "_hostapi": hostapi,
+                    "_score": _microphone_device_score(idx, name, hostapi, idx == default_input),
+                    "_key": _microphone_dedupe_key(name),
+                }
+            )
+        preferred_candidates = [
+            item for item in candidates if "wdm-ks" not in item["_hostapi"].lower()
+        ]
+        if preferred_candidates:
+            candidates = preferred_candidates
+        by_key = {}
+        for item in sorted(candidates, key=lambda value: value["_score"], reverse=True):
+            by_key.setdefault(item["_key"], item)
+        microphones = [
+            {key: value for key, value in item.items() if not key.startswith("_")}
+            for item in sorted(by_key.values(), key=lambda value: value["_score"], reverse=True)
+        ]
     except Exception:
         microphones = []
 
@@ -116,3 +140,54 @@ def list_audio_devices(settings) -> dict:  # noqa: ANN001
         },
         "audio_source": source,
     }
+
+
+def _skip_microphone_device(name: str) -> bool:
+    lowered = name.lower()
+    blocked_tokens = (
+        "sound mapper",
+        "主声音捕获",
+        "primary sound capture",
+        "speaker",
+        "扬声器",
+        "stereo mix",
+        "立体声混音",
+        "output",
+        "virtual",
+        "todesk",
+    )
+    if any(token in lowered for token in blocked_tokens):
+        return True
+    return name.strip() in {"", "麦克风 ()", "microphone ()"}
+
+
+def _microphone_dedupe_key(name: str) -> str:
+    normalized = name.lower()
+    normalized = re.sub(r"\s+\d+\s*(?=\()", " ", normalized)
+    normalized = re.sub(r"\b\d+\b", " ", normalized)
+    normalized = normalized.replace("array", "array")
+    normalized = normalized.replace("阵列", "阵列")
+    normalized = re.sub(r"\([^)]*(mic input|audio mic input|with sst)[^)]*\)", "(realtek)", normalized)
+    normalized = re.sub(r"\s+", " ", normalized)
+    return normalized.strip()
+
+
+def _microphone_device_score(index: int, name: str, hostapi: str, is_default: bool) -> int:
+    lowered_hostapi = hostapi.lower()
+    lowered_name = name.lower()
+    score = 0
+    if is_default:
+        score += 1000
+    if "wasapi" in lowered_hostapi:
+        score += 300
+    elif "mme" in lowered_hostapi:
+        score += 200
+    elif "directsound" in lowered_hostapi:
+        score += 100
+    elif "wdm-ks" in lowered_hostapi:
+        score -= 100
+    if "realtek" in lowered_name:
+        score += 20
+    if "麦克风阵列" in name or "microphone array" in lowered_name:
+        score += 10
+    return score - index

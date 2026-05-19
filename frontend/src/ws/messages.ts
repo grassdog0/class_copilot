@@ -10,6 +10,7 @@ export interface OutboundMessages {
   };
   stop_listening: Record<string, never>;
   manual_detect: Record<string, never>;
+  force_answer: Record<string, never>;
   chat: {
     question: string;
     model: "fast" | "quality" | null;

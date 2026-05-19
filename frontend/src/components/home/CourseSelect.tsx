@@ -75,7 +75,7 @@ export function CourseSelect({ disabled }: CourseSelectProps) {
             }}
             className="min-w-48"
           />
-          <Button onClick={() => void handleCreate()} disabled={submitting}>
+          <Button className="min-w-14" onClick={() => void handleCreate()} disabled={submitting}>
             {submitting ? <Loader2 size={14} className="animate-spin" /> : "添加"}
           </Button>
           {courses.length > 0 ? (
