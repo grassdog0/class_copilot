@@ -26,9 +26,9 @@ class RuntimeSettings:
     chat_model_fast: str = "qwen3.5-flash"
     vad_threshold: float = 0.3
     vad_prefix_padding_ms: int = 500
-    vad_silence_duration_ms: int = 1500
+    vad_silence_duration_ms: int = 800
     asr_session_rotate_minutes: float = 12.0
-    vad_max_segment_seconds: float = 30.0
+    vad_max_segment_seconds: float = 60.0
     question_confidence_threshold: float = 0.7
     question_cooldown_seconds: int = 15
     question_similarity_threshold: float = 0.8

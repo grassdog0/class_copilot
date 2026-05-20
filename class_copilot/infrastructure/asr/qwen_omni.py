@@ -4,16 +4,19 @@ import asyncio
 import base64
 import json
 import time
+import uuid
 from contextlib import suppress
 from typing import Any
 
 import websockets
+from loguru import logger
 
 from class_copilot.application.settings import RuntimeSettings
 from class_copilot.domain.exceptions import ASRConnectionError, ConfigurationError
 from class_copilot.domain.ports import ASRResult
 
 REALTIME_URL = "wss://dashscope.aliyuncs.com/api-ws/v1/realtime"
+asr_logger = logger.bind(module="asr")
 
 
 class QwenOmniRealtimeASR:
@@ -40,6 +43,10 @@ class QwenOmniRealtimeASR:
         self._language = "zh"
         self._manual_turn_detection = False
         self._context = ""
+        self._has_uncommitted_audio = False
+        self._pending_commits = 0
+        self._commit_event = asyncio.Event()
+        self._completion_event = asyncio.Event()
 
     @property
     def last_text_activity_elapsed(self) -> float:
@@ -66,8 +73,14 @@ class QwenOmniRealtimeASR:
                 language=language,
                 manual_turn_detection=manual_turn_detection,
             )
+            asr_logger.info(
+                "ASR connected model={} manual_turn_detection={}",
+                self.settings.asr_model,
+                manual_turn_detection,
+            )
         except Exception as exc:
             self.is_disconnected = True
+            asr_logger.exception("ASR connection failed model={}", self.settings.asr_model)
             raise ASRConnectionError("ASR 连接失败") from exc
         self.is_running = True
         self.is_disconnected = False
@@ -81,13 +94,12 @@ class QwenOmniRealtimeASR:
         if not self.is_running or self._ws is None:
             return
         await self._ws.send(
-            json.dumps(
-                {
-                    "type": "input_audio_buffer.append",
-                    "audio": base64.b64encode(pcm).decode("ascii"),
-                }
+            self._event_json(
+                "input_audio_buffer.append",
+                audio=base64.b64encode(pcm).decode("ascii"),
             )
         )
+        self._has_uncommitted_audio = True
         if time.monotonic() - self._started_monotonic >= self.settings.asr_session_rotate_minutes * 60:
             self.needs_rotation = True
 
@@ -111,20 +123,35 @@ class QwenOmniRealtimeASR:
                 await self._reader_task
         if self._ws is not None:
             with suppress(Exception):
-                await self._ws.close()
+                await self._ws.close(code=1000, reason="bye")
+                asr_logger.info("ASR websocket close sent code=1000 reason=bye")
         self._ws = None
         self._reader_task = None
 
     async def force_commit(self) -> None:
-        if self._ws is None:
+        if self._ws is None or not self._has_uncommitted_audio:
             return
-        await self._ws.send(json.dumps({"type": "input_audio_buffer.commit"}))
+        self._commit_event.clear()
+        self._completion_event.clear()
+        self._pending_commits += 1
+        await self._ws.send(self._event_json("input_audio_buffer.commit"))
+        asr_logger.debug("ASR sent input_audio_buffer.commit pending={}", self._pending_commits)
+        self._has_uncommitted_audio = False
         self._last_text_activity_monotonic = time.monotonic()
 
     async def finish_session(self) -> None:
         if self._ws is None:
             return
-        await self._ws.send(json.dumps({"type": "session.finish"}))
+        if self._has_uncommitted_audio:
+            await self.force_commit()
+        if self._pending_commits > 0:
+            with suppress(asyncio.TimeoutError):
+                await asyncio.wait_for(self._completion_event.wait(), timeout=8)
+        if self._pending_commits > 0:
+            asr_logger.warning(
+                "ASR final transcription timed out before close pending_commits={}",
+                self._pending_commits,
+            )
 
     async def rotate_session(self) -> None:
         language = self.settings.asr_language
@@ -151,6 +178,7 @@ class QwenOmniRealtimeASR:
         }.get(language, "Transcribe classroom audio.")
         payload = {
             "type": "session.update",
+            "event_id": self._event_id(),
             "session": {
                 "modalities": ["text"],
                 "input_audio_format": "pcm",
@@ -161,7 +189,7 @@ class QwenOmniRealtimeASR:
                 "turn_detection": None
                 if manual_turn_detection
                 else {
-                    "type": "semantic_vad",
+                    "type": "server_vad",
                     "threshold": self.settings.vad_threshold,
                     "prefix_padding_ms": self.settings.vad_prefix_padding_ms,
                     "silence_duration_ms": self.settings.vad_silence_duration_ms,
@@ -176,6 +204,12 @@ class QwenOmniRealtimeASR:
         }
         await self._ws.send(json.dumps(payload))
 
+    def _event_json(self, event_type: str, **payload: Any) -> str:
+        return json.dumps({"event_id": self._event_id(), "type": event_type, **payload})
+
+    def _event_id(self) -> str:
+        return f"event_{uuid.uuid4().hex}"
+
     async def _reader(self) -> None:
         try:
             async for raw in self._ws:
@@ -186,13 +220,22 @@ class QwenOmniRealtimeASR:
         except websockets.exceptions.ConnectionClosed as exc:
             self.last_error_code = exc.code
             self.is_disconnected = True
+            asr_logger.warning("ASR websocket closed code={} reason={}", exc.code, exc.reason)
         except Exception as exc:
             self.last_error_code = exc.__class__.__name__
             self.is_disconnected = True
+            asr_logger.exception("ASR reader failed")
 
     async def _handle_event(self, data: dict[str, Any]) -> None:
         event_type = str(data.get("type") or "")
+        if event_type:
+            asr_logger.debug("ASR event type={}", event_type)
+        if event_type == "input_audio_buffer.committed":
+            self._commit_event.set()
+            return
         if event_type == "session.finished":
+            self._pending_commits = 0
+            self._completion_event.set()
             return
         if event_type in {"error", "session.error"}:
             error = data.get("error") or {}
@@ -200,6 +243,7 @@ class QwenOmniRealtimeASR:
             self.last_error_code = code
             if str(code) in {"401", "403"} or "auth" in str(code).lower():
                 self.is_permanent_error = True
+            asr_logger.error("ASR server error code={} payload={}", code, data)
             return
 
         text = None
@@ -214,6 +258,10 @@ class QwenOmniRealtimeASR:
             text = f"{data.get('text', '')}{data.get('stash', '')}"
         if text:
             self._last_text_activity_monotonic = time.monotonic()
+            if is_final:
+                self._pending_commits = max(0, self._pending_commits - 1)
+                if self._pending_commits == 0:
+                    self._completion_event.set()
             now = time.time()
             await self.result_queue.put(
                 ASRResult(

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import time
 
 from fastapi.testclient import TestClient
 
-from class_copilot.application.session import ASRPipeline, _paragraph_context
+from class_copilot.application.session import _paragraph_context
 
 
 def test_websocket_status_and_chat_flow(app):
@@ -33,7 +34,7 @@ def test_websocket_status_and_chat_flow(app):
         assert status["type"] == "status"
         assert status["data"]["status"] == "listening"
         assert app.state.fake_asr.started_languages[-1] == "bilingual"
-        assert app.state.fake_asr.manual_turn_detection is False
+        assert app.state.fake_asr.manual_turn_detection is True
 
         ws.send_json({"type": "chat", "data": {"question": "解释一下", "model": "fast"}})
         seen_complete = False
@@ -84,7 +85,7 @@ def test_force_answer_skips_question_detection(app):
         assert app.state.fake_llm.answer_languages[-1] == "bilingual"
 
 
-def test_file_audio_uses_manual_turn_detection(app):
+def test_file_audio_uses_same_manual_turn_detection_as_microphone(app):
     app.state.config.debug_audio_file = True
     client = TestClient(app)
     course = client.post("/api/courses", json={"name": "调试"}).json()
@@ -113,30 +114,59 @@ def test_paragraph_context_keeps_whole_recent_segments():
     assert context == "第二段\n第三段"
 
 
-async def test_file_audio_segment_commit_waits_for_silence(app):
+async def test_segment_guard_waits_for_silence_and_stable_sentence(app):
     await app.state.settings_service.update(
-        {"audio_source": "file", "vad_max_segment_seconds": 0.01}
-    )
-    pipeline = ASRPipeline(
-        session_id="test-session",
-        asr=app.state.fake_asr,
-        audio_queue=asyncio.Queue(),
-        sessionmaker=app.state.sessionmaker,
-        question_detector=app.state.session_service.question_detector,
-        answer_generator=app.state.session_service.answer_generator,
-        settings_service=app.state.settings_service,
-        broadcast=app.state.connection_manager.broadcast,
-        stop_callback=app.state.session_service.stop_listening,
-    )
+            {
+                "audio_source": "microphone",
+                "vad_max_segment_seconds": 60,
+                "vad_silence_duration_ms": 800,
+            }
+        )
+    course = await _create_course(app, "文件调试")
+
+    await app.state.session_service.start_listening(course_id=course.id)
+    await asyncio.sleep(0.2)
+    assert app.state.fake_asr.force_commit_count == 0
 
     speech = (1000).to_bytes(2, byteorder="little", signed=True) * 1600
     silence = b"\x00\x00" * 1600
-    for _ in range(240):
-        assert pipeline._should_commit_file_segment(speech) is False
-    assert app.state.fake_asr.force_commit_count == 0
-    for _ in range(3):
-        assert pipeline._should_commit_file_segment(silence) is False
-    assert pipeline._should_commit_file_segment(silence) is True
+    pipeline = app.state.session_service._pipeline
+    assert pipeline is not None
+    for _ in range(120):
+        assert pipeline._should_commit_segment_at_audio_boundary(speech) is False
+    assert pipeline._should_commit_segment_at_audio_boundary(speech) is False
+    for _ in range(7):
+        assert pipeline._should_commit_segment_at_audio_boundary(silence) is False
+    pipeline._latest_interim_text = "这是一个已经稳定下来的完整课堂句子，适合作为当前转写段落的结束点。"
+    pipeline._latest_interim_updated_monotonic = time.monotonic() - 1
+    assert pipeline._should_commit_segment_at_audio_boundary(silence) is True
+
+
+async def test_file_audio_uses_same_segment_guard_as_microphone(app):
+    app.state.config.debug_audio_file = True
+    await app.state.settings_service.update(
+        {
+            "audio_source": "file",
+            "audio_file_path": str(app.state.config.data_dir / "demo.mp3"),
+            "vad_max_segment_seconds": 60,
+            "vad_silence_duration_ms": 800,
+        }
+    )
+    course = await _create_course(app, "文件调试")
+
+    await app.state.session_service.start_listening(course_id=course.id)
+
+    pipeline = app.state.session_service._pipeline
+    assert pipeline is not None
+    speech = (1000).to_bytes(2, byteorder="little", signed=True) * 1600
+    silence = b"\x00\x00" * 1600
+    for _ in range(120):
+        assert pipeline._should_commit_segment_at_audio_boundary(speech) is False
+    for _ in range(7):
+        assert pipeline._should_commit_segment_at_audio_boundary(silence) is False
+    pipeline._latest_interim_text = "这是一个已经稳定下来的完整课堂句子，适合作为当前转写段落的结束点。"
+    pipeline._latest_interim_updated_monotonic = time.monotonic() - 1
+    assert pipeline._should_commit_segment_at_audio_boundary(silence) is True
 
 
 async def test_final_transcript_updates_asr_context(app):
@@ -152,6 +182,46 @@ async def test_final_transcript_updates_asr_context(app):
 
     assert course.id
     assert app.state.fake_asr.context_updates[-1] == "第一段课堂内容。"
+
+
+async def test_interim_transcript_can_trigger_question_detection(app):
+    await app.state.settings_service.update({"question_cooldown_seconds": 0})
+    course = await app.state.session_service.start_listening(
+        course_id=(await _create_course(app, "临时检测")).id,
+    )
+    app.state.fake_llm.detect_calls = 0
+    await app.state.fake_asr.push(
+        "这里老师正在问一个比较长的问题，为什么机械能守恒需要满足这些条件？",
+        is_final=False,
+    )
+
+    for _ in range(30):
+        if app.state.fake_llm.detect_calls:
+            break
+        await asyncio.sleep(0.05)
+
+    assert course.id
+    assert app.state.fake_llm.detect_calls > 0
+
+
+async def test_incomplete_final_transcript_merges_with_next_segment(app):
+    course = await app.state.session_service.start_listening(
+        course_id=(await _create_course(app, "合并")).id,
+    )
+    await app.state.fake_asr.push("马耳他公民")
+    await app.state.fake_asr.push("完成当地大学开发的AI培训课程后。")
+
+    for _ in range(20):
+        if app.state.fake_asr.context_updates and "完成当地" in app.state.fake_asr.context_updates[-1]:
+            break
+        await asyncio.sleep(0.05)
+
+    from class_copilot.infrastructure.persistence.repositories import TranscriptionRepository
+
+    async with app.state.sessionmaker() as db:
+        context = await TranscriptionRepository(db).recent_text(course.id)
+
+    assert context == "马耳他公民完成当地大学开发的AI培训课程后。"
 
 
 async def _create_course(app, name: str):

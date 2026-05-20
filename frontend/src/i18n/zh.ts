@@ -146,6 +146,10 @@ export const zh: Dictionary = {
   detail_no_answer_for_type: "未生成{type}答案",
 
   settings_title: "设置",
+  settings_advanced_title: "高级设置",
+  settings_advanced_desc: "包含 VAD、ASR 会话轮换、最大段落长度和问题检测阈值等调试参数；日常使用通常不需要调整。",
+  settings_advanced_show: "显示高级设置",
+  settings_advanced_hide: "隐藏高级设置",
 
   apikey_title: "DashScope API Key",
   apikey_set: "已设置",
@@ -183,7 +187,7 @@ export const zh: Dictionary = {
   asr_vad_prefix: "VAD 前置静音 (ms)",
   asr_vad_silence: "VAD 静音持续 (ms)",
   asr_session_rotate: "ASR 会话轮换 (分钟)",
-  asr_max_segment: "最大段落长度 (秒)",
+  asr_max_segment: "硬兜底段落上限 (秒)",
 
   qparam_title: "问题检测参数",
   qparam_desc: "影响 AI 自动检测问题的灵敏度与去重。",

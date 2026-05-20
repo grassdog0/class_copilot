@@ -146,6 +146,10 @@ export const en: Dictionary = {
   detail_no_answer_for_type: "No {type} answer generated",
 
   settings_title: "Settings",
+  settings_advanced_title: "Advanced Settings",
+  settings_advanced_desc: "Contains debug parameters such as VAD, ASR session rotation, max segment length, and question detection thresholds. Usually not needed for daily use.",
+  settings_advanced_show: "Show Advanced",
+  settings_advanced_hide: "Hide Advanced",
 
   apikey_title: "DashScope API Key",
   apikey_set: "Set",
@@ -182,7 +186,7 @@ export const en: Dictionary = {
   asr_vad_prefix: "VAD Prefix Padding (ms)",
   asr_vad_silence: "VAD Silence Duration (ms)",
   asr_session_rotate: "ASR Session Rotation (min)",
-  asr_max_segment: "Max Segment Length (sec)",
+  asr_max_segment: "Hard Segment Limit (sec)",
 
   qparam_title: "Question Detection",
   qparam_desc: "Affects sensitivity and deduplication of auto-detected questions.",

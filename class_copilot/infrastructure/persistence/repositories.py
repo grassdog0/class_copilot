@@ -182,6 +182,9 @@ class TranscriptionRepository:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
+    async def get(self, transcription_id: str) -> orm.Transcription:
+        return await self.db.get_one(orm.Transcription, transcription_id)
+
     async def next_sequence(self, session_id: str) -> int:
         current = await self.db.scalar(
             select(func.max(orm.Transcription.sequence)).where(
@@ -209,6 +212,19 @@ class TranscriptionRepository:
             is_final=is_final,
         )
         self.db.add(item)
+        await self.db.commit()
+        await self.db.refresh(item)
+        return item
+
+    async def update_text(
+        self,
+        item: orm.Transcription,
+        *,
+        text: str,
+        end_time: float,
+    ) -> orm.Transcription:
+        item.text = text
+        item.end_time = end_time
         await self.db.commit()
         await self.db.refresh(item)
         return item

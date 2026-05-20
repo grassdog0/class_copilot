@@ -21,10 +21,13 @@ class FakeASR:
         self.context_updates: list[str] = []
         self.started_languages: list[str] = []
         self.manual_turn_detection = False
+        self.last_text_activity_elapsed_override: float | None = None
         self._last_text = time.monotonic()
 
     @property
     def last_text_activity_elapsed(self) -> float:
+        if self.last_text_activity_elapsed_override is not None:
+            return self.last_text_activity_elapsed_override
         return time.monotonic() - self._last_text
 
     async def pre_connect(self) -> None:

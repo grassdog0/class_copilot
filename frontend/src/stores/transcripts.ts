@@ -31,7 +31,9 @@ export const useTranscriptsStore = create<TranscriptsState>((set) => ({
         endTime: data.end_time,
       };
       set((state) => ({
-        finals: [...state.finals, line],
+        finals: state.finals.some((item) => item.sequence === line.sequence)
+          ? state.finals.map((item) => (item.sequence === line.sequence ? line : item))
+          : [...state.finals, line],
         interim: null,
       }));
     } else {

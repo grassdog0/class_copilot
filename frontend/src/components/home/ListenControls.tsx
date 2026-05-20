@@ -12,11 +12,13 @@ import { useWsConnectionState, useWsSend } from "@/ws/useWebSocket";
 import { useNavigate } from "react-router-dom";
 import { formatCountdown } from "@/lib/time";
 import { useI18n } from "@/i18n";
+import { getStatus } from "@/api/status";
 
 export function ListenControls() {
   const send = useWsSend();
   const navigate = useNavigate();
   const wsState = useWsConnectionState();
+  const applyStatus = useSessionStore((state) => state.applyStatus);
   const isListening = useSessionStore((state) => state.isListening);
   const status = useSessionStore((state) => state.status);
   const autoStopRemaining = useSessionStore((state) => state.autoStopRemaining);
@@ -57,7 +59,19 @@ export function ListenControls() {
     });
   };
 
-  const handleStop = () => send("stop_listening", {});
+  const handleStop = () => {
+    send("stop_listening", {});
+    void syncStoppedStatus();
+  };
+
+  const syncStoppedStatus = async () => {
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      await sleep(500);
+      const status = await getStatus();
+      applyStatus(status);
+      if (!status.is_listening) return;
+    }
+  };
 
   const handleAutoStopChange = (value: number) => {
     setPresetMinutes(value);
@@ -134,6 +148,10 @@ export function ListenControls() {
       ) : null}
     </div>
   );
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 function StatusBadge({

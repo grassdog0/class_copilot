@@ -162,6 +162,11 @@ async def get_settings(request: Request):
     return settings_to_response(request)
 
 
+@router.get("/status")
+async def get_status(request: Request):
+    return request.app.state.session_service.status_event()["data"]
+
+
 @router.patch("/settings")
 async def patch_settings(payload: SettingsPatch, request: Request):
     partial = payload.model_dump(exclude_unset=True)

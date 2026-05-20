@@ -147,6 +147,10 @@ export interface Dictionary {
   detail_no_answer_for_type: string;
   // Settings page
   settings_title: string;
+  settings_advanced_title: string;
+  settings_advanced_desc: string;
+  settings_advanced_show: string;
+  settings_advanced_hide: string;
   // ApiKey
   apikey_title: string;
   apikey_set: string;
