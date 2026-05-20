@@ -19,8 +19,8 @@ export function CardHeader({
   return (
     <div className={cn("card-header", className)}>
       <div>
-        <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
-        {description ? <p className="mt-0.5 text-xs text-slate-500">{description}</p> : null}
+        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</h3>
+        {description ? <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{description}</p> : null}
       </div>
       {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
     </div>

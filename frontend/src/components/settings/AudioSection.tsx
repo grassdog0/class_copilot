@@ -9,6 +9,7 @@ import { useUiStore } from "@/stores/ui";
 import { Loader2, Volume2, RefreshCcw } from "lucide-react";
 import { useMicMonitor } from "@/hooks/useMicMonitor";
 import { cn } from "@/lib/cn";
+import { useI18n } from "@/i18n";
 
 export function AudioSection() {
   const settings = useSettingsStore((state) => state.settings);
@@ -17,6 +18,7 @@ export function AudioSection() {
   const [devices, setDevices] = useState<AudioDevicesResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [testing, setTesting] = useState(false);
+  const { t } = useI18n();
 
   const refresh = async () => {
     setLoading(true);
@@ -26,7 +28,7 @@ export function AudioSection() {
     } catch (err) {
       pushToast({
         level: "error",
-        message: err instanceof Error ? err.message : "加载音频设备失败",
+        message: err instanceof Error ? err.message : t.audio_loadFailed,
       });
     } finally {
       setLoading(false);
@@ -60,20 +62,20 @@ export function AudioSection() {
         title={
           <span className="inline-flex items-center gap-2">
             <Volume2 size={14} />
-            音频设备
+            {t.audio_title}
           </span>
         }
-        description="麦克风或系统回环；变更下次会话生效。"
+        description={t.audio_desc}
         actions={
           <Button variant="ghost" size="sm" onClick={() => void refresh()}>
             <RefreshCcw size={12} />
-            刷新
+            {t.common_refresh}
           </Button>
         }
       />
       <CardBody className="space-y-4">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <Field label="音源">
+          <Field label={t.audio_source}>
             <Select
               value={settings.audio_source}
               onChange={(event) =>
@@ -83,17 +85,17 @@ export function AudioSection() {
                 })
               }
             >
-              <option value="microphone">麦克风</option>
+              <option value="microphone">{t.audio_source_microphone}</option>
               <option value="loopback" disabled={!devices?.loopback.available}>
-                系统回环{devices && !devices.loopback.available ? "（不可用）" : ""}
+                {t.audio_source_loopback}{devices && !devices.loopback.available ? t.audio_source_loopback_unavailable : ""}
               </option>
             </Select>
           </Field>
-          <Field label="设备">
+          <Field label={t.audio_device}>
             {loading && !devices ? (
-              <div className="inline-flex items-center gap-2 text-sm text-slate-500">
+              <div className="inline-flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
                 <Loader2 size={12} className="animate-spin" />
-                加载中
+                {t.common_loading}
               </div>
             ) : settings.audio_source === "microphone" ? (
               <Select
@@ -104,11 +106,11 @@ export function AudioSection() {
                   })
                 }
               >
-                <option value="">系统默认</option>
+                <option value="">{t.audio_device_default}</option>
                 {devices?.microphone.devices.map((device) => (
                   <option key={device.index} value={device.index}>
                     {device.name}
-                    {device.is_default ? "（默认）" : ""}
+                    {device.is_default ? ` (${t.common_default})` : ""}
                   </option>
                 ))}
               </Select>
@@ -122,11 +124,11 @@ export function AudioSection() {
                   })
                 }
               >
-                <option value="">系统默认</option>
+                <option value="">{t.audio_device_default}</option>
                 {devices?.loopback.devices.map((device) => (
                   <option key={device.id} value={device.id}>
                     {device.name}
-                    {device.is_default ? "（默认）" : ""}
+                    {device.is_default ? ` (${t.common_default})` : ""}
                   </option>
                 ))}
               </Select>
@@ -152,15 +154,16 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function MicTest({ active, onToggle }: { active: boolean; onToggle: () => void }) {
   const snapshot = useMicMonitor(active);
   const segments = Math.max(0, Math.min(20, Math.round(snapshot.peak * 20)));
+  const { t } = useI18n();
   return (
-    <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+    <div className="rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-600 dark:bg-slate-700">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-medium text-slate-800">测试麦克风</p>
-          <p className="text-xs text-slate-500">点击后说话 5 秒，观察电平条。</p>
+          <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{t.audio_test_title}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{t.audio_test_desc}</p>
         </div>
         <Button variant={active ? "secondary" : "primary"} onClick={onToggle}>
-          {active ? "停止测试" : "开始测试"}
+          {active ? t.audio_test_stop : t.audio_test_start}
         </Button>
       </div>
       <div className="mt-3 flex h-3 gap-0.5">
@@ -175,7 +178,7 @@ function MicTest({ active, onToggle }: { active: boolean; onToggle: () => void }
                   : idx > 13
                     ? "bg-amber-500"
                     : "bg-emerald-500"
-                : "bg-slate-200",
+                : "bg-slate-200 dark:bg-slate-600",
             )}
           />
         ))}

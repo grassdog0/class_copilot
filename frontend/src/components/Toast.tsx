@@ -3,6 +3,7 @@ import { useUiStore } from "@/stores/ui";
 import { cn } from "@/lib/cn";
 import type { ToastLevel } from "@/stores/ui";
 import { AlertCircle, AlertTriangle, CheckCircle2, Info, X } from "lucide-react";
+import { useI18n } from "@/i18n";
 
 const ICONS: Record<ToastLevel, typeof Info> = {
   info: Info,
@@ -12,10 +13,10 @@ const ICONS: Record<ToastLevel, typeof Info> = {
 };
 
 const STYLES: Record<ToastLevel, string> = {
-  info: "border-brand-200 bg-brand-50 text-brand-900",
-  success: "border-emerald-200 bg-emerald-50 text-emerald-900",
-  warning: "border-amber-200 bg-amber-50 text-amber-900",
-  error: "border-rose-200 bg-rose-50 text-rose-900",
+  info: "border-brand-200 bg-brand-50 text-brand-900 dark:border-brand-700 dark:bg-brand-900/40 dark:text-brand-200",
+  success: "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200",
+  warning: "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-200",
+  error: "border-rose-200 bg-rose-50 text-rose-900 dark:border-rose-700 dark:bg-rose-900/40 dark:text-rose-200",
 };
 
 const TOAST_TTL = 6000;
@@ -23,6 +24,7 @@ const TOAST_TTL = 6000;
 export function ToastViewport() {
   const toasts = useUiStore((state) => state.toasts);
   const dismiss = useUiStore((state) => state.dismissToast);
+  const { t } = useI18n();
 
   useEffect(() => {
     if (toasts.length === 0) return;
@@ -56,7 +58,7 @@ export function ToastViewport() {
               type="button"
               onClick={() => dismiss(toast.id)}
               className="rounded p-0.5 text-current opacity-70 hover:opacity-100"
-              aria-label="关闭通知"
+              aria-label={t.toast_close}
             >
               <X size={14} />
             </button>

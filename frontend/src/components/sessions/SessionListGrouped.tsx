@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/Input";
 import { renameSession, deleteSession } from "@/api/sessions";
 import { ApiError } from "@/api/client";
 import { useUiStore } from "@/stores/ui";
+import { useI18n } from "@/i18n";
 import {
   formatDateGroup,
   formatLocalTime,
@@ -29,6 +30,7 @@ export function SessionListGrouped({ sessions, onChanged }: Props) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<SessionListItem | null>(null);
+  const { t } = useI18n();
 
   const groups = useMemo(() => groupByDate(sessions), [sessions]);
 
@@ -37,14 +39,14 @@ export function SessionListGrouped({ sessions, onChanged }: Props) {
       <div className="flex flex-col gap-6">
         {groups.map((group) => (
           <section key={group.key} className="flex flex-col gap-2">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               {group.label}
             </h2>
             <ul className="grid grid-cols-1 gap-2 md:grid-cols-2">
               {group.items.map((session) => (
                 <li
                   key={session.id}
-                  className="card relative px-4 py-3 transition-colors hover:border-slate-300"
+                  className="card relative px-4 py-3 transition-colors hover:border-slate-300 dark:hover:border-slate-500"
                 >
                   <Link
                     to={`/sessions/${session.id}`}
@@ -52,14 +54,14 @@ export function SessionListGrouped({ sessions, onChanged }: Props) {
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex flex-1 items-center gap-2 truncate pr-8">
-                        <span className="truncate text-sm font-semibold text-slate-900">
-                          {session.custom_name ?? session.course_name ?? "未命名会话"}
+                        <span className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+                          {session.custom_name ?? session.course_name ?? t.common_unnamed}
                         </span>
                         <SessionStatusBadge status={session.status} />
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 text-xs text-slate-500">
-                      <span>{session.course_name ?? "—"}</span>
+                    <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
+                      <span>{session.course_name ?? t.common_dash}</span>
                       <span className="flex items-center gap-1">
                         <Clock size={12} />
                         {formatLocalTime(session.started_at)} – {formatLocalTime(session.ended_at)}
@@ -74,16 +76,16 @@ export function SessionListGrouped({ sessions, onChanged }: Props) {
                         event.stopPropagation();
                         setOpenMenuId(openMenuId === session.id ? null : session.id);
                       }}
-                      className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                      aria-label="更多操作"
+                      className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+                      aria-label={t.sessions_more}
                     >
                       <MoreHorizontal size={14} />
                     </button>
                     {openMenuId === session.id ? (
-                      <div className="absolute right-0 top-7 z-20 w-32 rounded-md border border-slate-200 bg-white py-1 shadow-md">
+                      <div className="absolute right-0 top-7 z-20 w-32 rounded-md border border-slate-200 bg-white py-1 shadow-md dark:border-slate-600 dark:bg-slate-800">
                         <button
                           type="button"
-                          className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-50"
+                          className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-700"
                           onClick={() => {
                             setRenameTarget({
                               id: session.id,
@@ -93,18 +95,18 @@ export function SessionListGrouped({ sessions, onChanged }: Props) {
                           }}
                         >
                           <Pencil size={12} />
-                          重命名
+                          {t.common_rename}
                         </button>
                         <button
                           type="button"
-                          className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-rose-600 hover:bg-rose-50"
+                          className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-900/30"
                           onClick={() => {
                             setDeleteTarget(session);
                             setOpenMenuId(null);
                           }}
                         >
                           <Trash2 size={12} />
-                          删除
+                          {t.common_delete}
                         </button>
                       </div>
                     ) : null}
@@ -138,9 +140,10 @@ export function SessionListGrouped({ sessions, onChanged }: Props) {
 }
 
 function SessionStatusBadge({ status }: { status: SessionListItem["status"] }) {
-  if (status === "active") return <Badge tone="info">进行中</Badge>;
-  if (status === "interrupted") return <Badge tone="warning">中断</Badge>;
-  return <Badge tone="neutral">已停止</Badge>;
+  const { t } = useI18n();
+  if (status === "active") return <Badge tone="info">{t.sessions_status_active}</Badge>;
+  if (status === "interrupted") return <Badge tone="warning">{t.sessions_status_interrupted}</Badge>;
+  return <Badge tone="neutral">{t.sessions_status_stopped}</Badge>;
 }
 
 interface DateGroup {
@@ -177,6 +180,7 @@ function RenameModal({
   const [name, setName] = useState(target?.name ?? "");
   const [submitting, setSubmitting] = useState(false);
   const pushToast = useUiStore((state) => state.pushToast);
+  const { t } = useI18n();
 
   useEffect(() => {
     setName(target?.name ?? "");
@@ -190,7 +194,7 @@ function RenameModal({
       await renameSession(target.id, name.trim() || null);
       onSaved();
     } catch (err) {
-      const detail = err instanceof ApiError ? err.detail : "重命名失败";
+      const detail = err instanceof ApiError ? err.detail : t.sessions_renameFailed;
       pushToast({ level: "error", message: detail });
     } finally {
       setSubmitting(false);
@@ -200,15 +204,15 @@ function RenameModal({
   return (
     <Modal
       open
-      title="重命名会话"
+      title={t.sessions_renameTitle}
       onClose={onClose}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            取消
+            {t.common_cancel}
           </Button>
           <Button onClick={handleSave} disabled={submitting}>
-            保存
+            {t.common_save}
           </Button>
         </>
       }
@@ -217,9 +221,9 @@ function RenameModal({
         autoFocus
         value={name}
         onChange={(event) => setName(event.target.value)}
-        placeholder="输入会话名称"
+        placeholder={t.sessions_renameInputPlaceholder}
       />
-      <p className="mt-2 text-xs text-slate-500">留空恢复使用课程名作为会话名。</p>
+      <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{t.sessions_renameHint}</p>
     </Modal>
   );
 }
@@ -235,16 +239,17 @@ function DeleteModal({
 }) {
   const [submitting, setSubmitting] = useState(false);
   const pushToast = useUiStore((state) => state.pushToast);
+  const { t } = useI18n();
   if (!target) return null;
 
   const handleDelete = async () => {
     setSubmitting(true);
     try {
       await deleteSession(target.id);
-      pushToast({ level: "success", message: "已删除会话" });
+      pushToast({ level: "success", message: t.sessions_deleted });
       onDeleted();
     } catch (err) {
-      const detail = err instanceof ApiError ? err.detail : "删除失败";
+      const detail = err instanceof ApiError ? err.detail : t.sessions_deleteFailed;
       pushToast({ level: "error", message: detail });
     } finally {
       setSubmitting(false);
@@ -254,22 +259,22 @@ function DeleteModal({
   return (
     <Modal
       open
-      title="删除会话"
-      description="此操作不可恢复，将连同录音文件一起删除。"
+      title={t.sessions_deleteTitle}
+      description={t.sessions_deleteDesc}
       onClose={onClose}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            取消
+            {t.common_cancel}
           </Button>
           <Button variant="danger" onClick={handleDelete} disabled={submitting}>
-            确认删除
+            {t.sessions_deleteConfirm}
           </Button>
         </>
       }
     >
-      <p className="text-sm text-slate-700">
-        将删除会话「{target.custom_name ?? target.course_name ?? target.id}」。
+      <p className="text-sm text-slate-700 dark:text-slate-300">
+        {t.sessions_deleteTitle}「{target.custom_name ?? target.course_name ?? target.id}」
       </p>
     </Modal>
   );

@@ -10,6 +10,7 @@ import { listSessions } from "@/api/sessions";
 import { ApiError } from "@/api/client";
 import { BookOpen, Pencil, Trash2 } from "lucide-react";
 import { formatLocalDate } from "@/lib/time";
+import { useI18n, tpl } from "@/i18n";
 
 export function CourseManageSection() {
   const courses = useCoursesStore((state) => state.items);
@@ -17,12 +18,12 @@ export function CourseManageSection() {
   const rename = useCoursesStore((state) => state.rename);
   const remove = useCoursesStore((state) => state.remove);
   const pushToast = useUiStore((state) => state.pushToast);
+  const { t } = useI18n();
 
   const [renameTarget, setRenameTarget] = useState<Course | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Course | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
 
-  // Lazy-fetch session counts for delete UX
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -49,33 +50,33 @@ export function CourseManageSection() {
         title={
           <span className="inline-flex items-center gap-2">
             <BookOpen size={14} />
-            课程管理
+            {t.cm_title}
           </span>
         }
-        description="可在监听主页内联新建课程；这里管理已有课程。"
+        description={t.cm_desc}
       />
       <CardBody>
         {courses.length === 0 ? (
-          <p className="text-sm text-slate-500">暂无课程，请先在监听主页新建。</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">{t.cm_empty}</p>
         ) : (
-          <div className="overflow-hidden rounded-md border border-slate-200">
-            <table className="min-w-full divide-y divide-slate-200">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+          <div className="overflow-hidden rounded-md border border-slate-200 dark:border-slate-700">
+            <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+              <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500 dark:bg-slate-700 dark:text-slate-400">
                 <tr>
-                  <th className="px-3 py-2 text-left font-medium">课程名</th>
-                  <th className="px-3 py-2 text-left font-medium">会话数</th>
-                  <th className="px-3 py-2 text-left font-medium">创建时间</th>
-                  <th className="px-3 py-2 text-right font-medium">操作</th>
+                  <th className="px-3 py-2 text-left font-medium">{t.cm_col_name}</th>
+                  <th className="px-3 py-2 text-left font-medium">{t.cm_col_count}</th>
+                  <th className="px-3 py-2 text-left font-medium">{t.cm_col_created}</th>
+                  <th className="px-3 py-2 text-right font-medium">{t.cm_col_actions}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 bg-white text-sm">
+              <tbody className="divide-y divide-slate-100 bg-white text-sm dark:divide-slate-700 dark:bg-slate-800">
                 {courses.map((course) => {
                   const sessionsCount = counts[course.id] ?? 0;
                   return (
                     <tr key={course.id}>
-                      <td className="px-3 py-2 text-slate-800">{course.name}</td>
-                      <td className="px-3 py-2 text-slate-600">{sessionsCount}</td>
-                      <td className="px-3 py-2 text-slate-500">
+                      <td className="px-3 py-2 text-slate-800 dark:text-slate-200">{course.name}</td>
+                      <td className="px-3 py-2 text-slate-600 dark:text-slate-400">{sessionsCount}</td>
+                      <td className="px-3 py-2 text-slate-500 dark:text-slate-400">
                         {formatLocalDate(course.created_at)}
                       </td>
                       <td className="px-3 py-2 text-right">
@@ -86,17 +87,17 @@ export function CourseManageSection() {
                             onClick={() => setRenameTarget(course)}
                           >
                             <Pencil size={12} />
-                            重命名
+                            {t.common_rename}
                           </Button>
                           <Button
                             variant="ghost"
                             size="sm"
                             disabled={sessionsCount > 0}
-                            title={sessionsCount > 0 ? "课程下还有会话" : ""}
+                            title={sessionsCount > 0 ? t.cm_hasSessions : ""}
                             onClick={() => setDeleteTarget(course)}
                           >
                             <Trash2 size={12} />
-                            删除
+                            {t.common_delete}
                           </Button>
                         </div>
                       </td>
@@ -116,7 +117,7 @@ export function CourseManageSection() {
           if (!renameTarget) return;
           try {
             await rename(renameTarget.id, name);
-            pushToast({ level: "success", message: "已更新课程名" });
+            pushToast({ level: "success", message: t.cm_renamed });
             setRenameTarget(null);
           } catch {
             // toast handled
@@ -126,13 +127,13 @@ export function CourseManageSection() {
 
       <Modal
         open={!!deleteTarget}
-        title="删除课程"
-        description="此操作不可恢复。"
+        title={t.cm_deleteTitle}
+        description={t.cm_deleteIrreversible}
         onClose={() => setDeleteTarget(null)}
         footer={
           <>
             <Button variant="ghost" onClick={() => setDeleteTarget(null)}>
-              取消
+              {t.common_cancel}
             </Button>
             <Button
               variant="danger"
@@ -140,7 +141,7 @@ export function CourseManageSection() {
                 if (!deleteTarget) return;
                 try {
                   await remove(deleteTarget.id);
-                  pushToast({ level: "success", message: "已删除课程" });
+                  pushToast({ level: "success", message: t.cm_deleted });
                   setDeleteTarget(null);
                   await refresh();
                 } catch (err) {
@@ -150,12 +151,14 @@ export function CourseManageSection() {
                 }
               }}
             >
-              确认删除
+              {t.sessions_deleteConfirm}
             </Button>
           </>
         }
       >
-        <p className="text-sm text-slate-700">确认删除课程「{deleteTarget?.name}」？</p>
+        <p className="text-sm text-slate-700 dark:text-slate-300">
+          {tpl(t.cm_deleteConfirmText, { name: deleteTarget?.name ?? "" })}
+        </p>
       </Modal>
     </Card>
   );
@@ -172,6 +175,7 @@ function RenameCourseModal({
 }) {
   const [name, setName] = useState(target?.name ?? "");
   const [submitting, setSubmitting] = useState(false);
+  const { t } = useI18n();
 
   useEffect(() => {
     setName(target?.name ?? "");
@@ -182,12 +186,12 @@ function RenameCourseModal({
   return (
     <Modal
       open
-      title="重命名课程"
+      title={t.cm_renameTitle}
       onClose={onClose}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            取消
+            {t.common_cancel}
           </Button>
           <Button
             onClick={async () => {
@@ -198,7 +202,7 @@ function RenameCourseModal({
             }}
             disabled={submitting || !name.trim()}
           >
-            保存
+            {t.common_save}
           </Button>
         </>
       }
@@ -207,7 +211,7 @@ function RenameCourseModal({
         autoFocus
         value={name}
         onChange={(event) => setName(event.target.value)}
-        placeholder="课程名"
+        placeholder={t.cm_renamePlaceholder}
       />
     </Modal>
   );

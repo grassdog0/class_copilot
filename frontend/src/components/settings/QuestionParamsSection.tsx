@@ -6,11 +6,13 @@ import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
 import { Brain } from "lucide-react";
 import type { SettingsPatch } from "@/api/types";
 import { formatPercent } from "@/lib/format";
+import { useI18n, tpl } from "@/i18n";
 
 export function QuestionParamsSection() {
   const settings = useSettingsStore((state) => state.settings);
   const patchLocal = useSettingsStore((state) => state.patchLocal);
   const update = useSettingsStore((state) => state.update);
+  const { t } = useI18n();
 
   const debouncedUpdate = useDebouncedCallback((partial: SettingsPatch) => {
     void update(partial);
@@ -29,15 +31,15 @@ export function QuestionParamsSection() {
         title={
           <span className="inline-flex items-center gap-2">
             <Brain size={14} />
-            问题检测参数
+            {t.qparam_title}
           </span>
         }
-        description="影响 AI 自动检测问题的灵敏度与去重。"
+        description={t.qparam_desc}
       />
       <CardBody className="grid grid-cols-1 gap-5 md:grid-cols-2">
         <Field
-          label="置信度阈值"
-          hint={`当前：${formatPercent(settings.question_confidence_threshold, 0)}`}
+          label={t.qparam_confidence}
+          hint={tpl(t.qparam_current, { value: formatPercent(settings.question_confidence_threshold, 0) })}
         >
           <Slider
             min={0}
@@ -50,8 +52,8 @@ export function QuestionParamsSection() {
           />
         </Field>
         <Field
-          label="去重相似度"
-          hint={`当前：${formatPercent(settings.question_similarity_threshold, 0)}`}
+          label={t.qparam_similarity}
+          hint={tpl(t.qparam_current, { value: formatPercent(settings.question_similarity_threshold, 0) })}
         >
           <Slider
             min={0}
@@ -63,7 +65,7 @@ export function QuestionParamsSection() {
             }
           />
         </Field>
-        <Field label="冷却秒数">
+        <Field label={t.qparam_cooldown}>
           <Input
             type="number"
             min={0}
@@ -91,7 +93,7 @@ function Field({
     <div className="flex flex-col gap-1.5">
       <label className="label">{label}</label>
       {children}
-      {hint ? <span className="text-xs text-slate-500">{hint}</span> : null}
+      {hint ? <span className="text-xs text-slate-500 dark:text-slate-400">{hint}</span> : null}
     </div>
   );
 }

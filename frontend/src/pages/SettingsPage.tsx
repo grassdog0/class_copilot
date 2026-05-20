@@ -6,11 +6,13 @@ import { QuestionParamsSection } from "@/components/settings/QuestionParamsSecti
 import { AudioSection } from "@/components/settings/AudioSection";
 import { CourseManageSection } from "@/components/settings/CourseManageSection";
 import { useSettingsStore } from "@/stores/settings";
+import { useI18n } from "@/i18n";
 import { Loader2 } from "lucide-react";
 
 export function SettingsPage() {
   const settings = useSettingsStore((state) => state.settings);
   const load = useSettingsStore((state) => state.load);
+  const { t } = useI18n();
 
   useEffect(() => {
     if (!settings) void load();
@@ -26,7 +28,7 @@ export function SettingsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-lg font-semibold text-slate-900">设置</h1>
+      <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{t.settings_title}</h1>
       <ApiKeySection />
       <ModelSection />
       <AsrParamsSection />

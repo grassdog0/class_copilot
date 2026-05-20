@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { useUiStore } from "@/stores/ui";
 import { SessionListGrouped } from "@/components/sessions/SessionListGrouped";
 import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
+import { useI18n } from "@/i18n";
 
 export function SessionsPage() {
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
@@ -18,6 +19,7 @@ export function SessionsPage() {
   const [filterCourseId, setFilterCourseId] = useState<string>("");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const { t } = useI18n();
 
   const pushToast = useUiStore((state) => state.pushToast);
 
@@ -33,12 +35,12 @@ export function SessionsPage() {
     } catch (err) {
       pushToast({
         level: "error",
-        message: err instanceof Error ? err.message : "加载会话失败",
+        message: err instanceof Error ? err.message : t.sessions_loadFailed,
       });
     } finally {
       setLoading(false);
     }
-  }, [filterCourseId, pushToast]);
+  }, [filterCourseId, pushToast, t]);
 
   useEffect(() => {
     void refresh();
@@ -66,7 +68,7 @@ export function SessionsPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-lg font-semibold text-slate-900">历史会话</h1>
+        <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{t.sessions_title}</h1>
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
             <Search
@@ -74,7 +76,7 @@ export function SessionsPage() {
               className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
             />
             <Input
-              placeholder="搜索课程或会话名"
+              placeholder={t.sessions_search}
               value={search}
               onChange={(event) => {
                 setSearch(event.target.value);
@@ -88,7 +90,7 @@ export function SessionsPage() {
             onChange={(event) => setFilterCourseId(event.target.value)}
             className="w-44"
           >
-            <option value="">全部课程</option>
+            <option value="">{t.sessions_allCourses}</option>
             {courses.map((course) => (
               <option key={course.id} value={course.id}>
                 {course.name}
@@ -96,7 +98,7 @@ export function SessionsPage() {
             ))}
           </Select>
           <Button variant="secondary" onClick={() => void refresh()}>
-            {loading ? <Loader2 size={14} className="animate-spin" /> : "刷新"}
+            {loading ? <Loader2 size={14} className="animate-spin" /> : t.common_refresh}
           </Button>
         </div>
       </div>
@@ -107,8 +109,8 @@ export function SessionsPage() {
         </div>
       ) : filtered.length === 0 ? (
         <EmptyState
-          title="暂无会话"
-          description="开始监听后会自动创建会话，并出现在这里。"
+          title={t.sessions_empty_title}
+          description={t.sessions_empty_desc}
         />
       ) : (
         <SessionListGrouped sessions={filtered} onChanged={() => void refresh()} />

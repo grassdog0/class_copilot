@@ -5,6 +5,7 @@ export type QuestionSource = "auto" | "manual";
 export type AnswerType = "brief" | "detailed";
 export type ChatRole = "user" | "assistant";
 export type Language = "zh" | "en";
+export type OutputLanguage = "zh" | "en" | "bilingual";
 export type AudioSource = "microphone" | "loopback";
 export type AsrModel = "qwen3.5-omni-flash-realtime" | "qwen3.5-omni-plus-realtime";
 
@@ -77,6 +78,9 @@ export interface RuntimeSettings {
   dashscope_api_key: string;
   dashscope_api_key_set: boolean;
   language: Language;
+  asr_language: OutputLanguage;
+  auto_answer_language: OutputLanguage;
+  chat_language: OutputLanguage;
   auto_answer_type: AnswerType;
   asr_model: AsrModel;
   chat_model_default: string;
@@ -96,6 +100,9 @@ export interface RuntimeSettings {
 export type SettingsPatch = Partial<{
   dashscope_api_key: string;
   language: Language;
+  asr_language: OutputLanguage;
+  auto_answer_language: OutputLanguage;
+  chat_language: OutputLanguage;
   auto_answer_type: AnswerType;
   asr_model: AsrModel;
   chat_model_default: string;

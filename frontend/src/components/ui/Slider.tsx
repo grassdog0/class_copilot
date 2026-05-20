@@ -22,7 +22,7 @@ export function Slider({ value, min, max, step, onChange, className, disabled }:
       disabled={disabled}
       onChange={(event: ChangeEvent<HTMLInputElement>) => onChange(Number(event.target.value))}
       className={cn(
-        "h-1.5 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-brand-600 disabled:cursor-not-allowed disabled:opacity-50",
+        "h-1.5 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-brand-600 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-600",
         className,
       )}
     />

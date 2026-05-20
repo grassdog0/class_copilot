@@ -11,13 +11,7 @@ import { useUiStore } from "@/stores/ui";
 import { useWsConnectionState, useWsSend } from "@/ws/useWebSocket";
 import { useNavigate } from "react-router-dom";
 import { formatCountdown } from "@/lib/time";
-
-const PRESETS: { label: string; minutes: number }[] = [
-  { label: "不自动停止", minutes: 0 },
-  { label: "30 分钟", minutes: 30 },
-  { label: "60 分钟", minutes: 60 },
-  { label: "90 分钟", minutes: 90 },
-];
+import { useI18n } from "@/i18n";
 
 export function ListenControls() {
   const send = useWsSend();
@@ -29,6 +23,7 @@ export function ListenControls() {
   const courseId = useCoursesStore((state) => state.selectedId);
   const apiKeySet = useSettingsStore((state) => state.settings?.dashscope_api_key_set ?? false);
   const pushToast = useUiStore((state) => state.pushToast);
+  const { t } = useI18n();
 
   const [presetMinutes, setPresetMinutes] = useState<number>(0);
   const [customMinutes, setCustomMinutes] = useState<string>("");
@@ -38,20 +33,27 @@ export function ListenControls() {
 
   const minutesToUse = presetMinutes === -1 ? Number(customMinutes || 0) : presetMinutes;
 
+  const PRESETS: { label: string; minutes: number }[] = [
+    { label: t.listen_autoStop_none, minutes: 0 },
+    { label: t.listen_autoStop_30, minutes: 30 },
+    { label: t.listen_autoStop_60, minutes: 60 },
+    { label: t.listen_autoStop_90, minutes: 90 },
+  ];
+
   const handleStart = () => {
     if (!courseId) {
-      pushToast({ level: "warning", message: "请先选择课程" });
+      pushToast({ level: "warning", message: t.listen_warn_chooseCourse });
       return;
     }
     if (!apiKeySet) {
-      pushToast({ level: "warning", message: "请先在设置中填写 DashScope API Key" });
+      pushToast({ level: "warning", message: t.listen_warn_apiKey });
       navigate("/settings");
       return;
     }
     send("start_listening", {
       course_id: courseId,
       auto_stop_seconds: Math.max(0, Math.round(minutesToUse * 60)),
-      auto_stop_label: presetMinutes === -1 ? `${minutesToUse} 分钟` : "",
+      auto_stop_label: presetMinutes === -1 ? `${minutesToUse} ${t.common_minutes}` : "",
     });
   };
 
@@ -68,7 +70,7 @@ export function ListenControls() {
     const n = Number(customMinutes);
     if (Number.isNaN(n) || n < 0) return;
     if (isListening) {
-      send("update_auto_stop", { seconds: Math.round(n * 60), label: `${n} 分钟` });
+      send("update_auto_stop", { seconds: Math.round(n * 60), label: `${n} ${t.common_minutes}` });
     }
   };
 
@@ -81,17 +83,17 @@ export function ListenControls() {
           ) : (
             <Play size={16} />
           )}
-          开始监听
+          {t.listen_start}
         </Button>
       ) : (
         <Button size="lg" variant="danger" onClick={handleStop}>
           <Pause size={16} />
-          停止监听
+          {t.listen_stop}
         </Button>
       )}
 
-      <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-2 py-1">
-        <Timer size={14} className="text-slate-500" />
+      <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-2 py-1 dark:border-slate-600 dark:bg-slate-700">
+        <Timer size={14} className="text-slate-500 dark:text-slate-400" />
         <Select
           value={presetMinutes}
           onChange={(event) => handleAutoStopChange(Number(event.target.value))}
@@ -102,7 +104,7 @@ export function ListenControls() {
               {preset.label}
             </option>
           ))}
-          <option value={-1}>自定义...</option>
+          <option value={-1}>{t.listen_autoStop_custom}</option>
         </Select>
         {presetMinutes === -1 ? (
           <div className="flex items-center gap-1">
@@ -112,11 +114,11 @@ export function ListenControls() {
               value={customMinutes}
               onChange={(event) => setCustomMinutes(event.target.value)}
               className="w-20 px-2 py-1 text-sm"
-              placeholder="分钟"
+              placeholder={t.listen_minutesPlaceholder}
             />
             {isListening ? (
               <Button variant="secondary" size="sm" onClick={handleApplyCustom}>
-                应用
+                {t.common_apply}
               </Button>
             ) : null}
           </div>
@@ -127,7 +129,7 @@ export function ListenControls() {
 
       {isListening && autoStopRemaining > 0 ? (
         <Badge tone={autoStopRemaining <= 30 ? "warning" : "info"}>
-          剩余 {formatCountdown(autoStopRemaining)}
+          {t.listen_remaining} {formatCountdown(autoStopRemaining)}
         </Badge>
       ) : null}
     </div>
@@ -141,8 +143,9 @@ function StatusBadge({
   status: string;
   isListening: boolean;
 }) {
-  if (status === "error") return <Badge tone="danger">错误</Badge>;
-  if (isListening) return <Badge tone="success">监听中</Badge>;
-  if (status === "stopped") return <Badge tone="neutral">已停止</Badge>;
-  return <Badge tone="info">就绪</Badge>;
+  const { t } = useI18n();
+  if (status === "error") return <Badge tone="danger">{t.listen_status_error}</Badge>;
+  if (isListening) return <Badge tone="success">{t.listen_status_listening}</Badge>;
+  if (status === "stopped") return <Badge tone="neutral">{t.listen_status_stopped}</Badge>;
+  return <Badge tone="info">{t.listen_status_ready}</Badge>;
 }

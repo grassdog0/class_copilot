@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { useCoursesStore } from "@/stores/courses";
+import { useI18n } from "@/i18n";
 
 interface CourseSelectProps {
   disabled?: boolean;
@@ -14,6 +15,7 @@ export function CourseSelect({ disabled }: CourseSelectProps) {
   const selectedId = useCoursesStore((state) => state.selectedId);
   const select = useCoursesStore((state) => state.select);
   const create = useCoursesStore((state) => state.create);
+  const { t } = useI18n();
 
   const [adding, setAdding] = useState(courses.length === 0);
   const [name, setName] = useState("");
@@ -33,7 +35,7 @@ export function CourseSelect({ disabled }: CourseSelectProps) {
 
   return (
     <div className="flex flex-col gap-2">
-      <label className="label">课程</label>
+      <label className="label">{t.course_label}</label>
       {!adding ? (
         <div className="flex items-center gap-2">
           <Select
@@ -43,11 +45,11 @@ export function CourseSelect({ disabled }: CourseSelectProps) {
             className="min-w-48"
           >
             {courses.length === 0 ? (
-              <option value="">暂无课程</option>
+              <option value="">{t.course_none}</option>
             ) : (
               <>
                 <option value="" disabled>
-                  请选择课程
+                  {t.course_choose}
                 </option>
                 {courses.map((course) => (
                   <option key={course.id} value={course.id}>
@@ -59,14 +61,14 @@ export function CourseSelect({ disabled }: CourseSelectProps) {
           </Select>
           <Button variant="secondary" onClick={() => setAdding(true)} disabled={disabled}>
             <Plus size={14} />
-            新建
+            {t.course_new}
           </Button>
         </div>
       ) : (
         <div className="flex items-center gap-2">
           <Input
             autoFocus
-            placeholder="新课程名"
+            placeholder={t.course_newName}
             value={name}
             onChange={(event) => setName(event.target.value)}
             onKeyDown={(event) => {
@@ -76,11 +78,11 @@ export function CourseSelect({ disabled }: CourseSelectProps) {
             className="min-w-48"
           />
           <Button className="min-w-14" onClick={() => void handleCreate()} disabled={submitting}>
-            {submitting ? <Loader2 size={14} className="animate-spin" /> : "添加"}
+            {submitting ? <Loader2 size={14} className="animate-spin" /> : t.course_add}
           </Button>
           {courses.length > 0 ? (
             <Button variant="ghost" onClick={() => setAdding(false)}>
-              取消
+              {t.common_cancel}
             </Button>
           ) : null}
         </div>

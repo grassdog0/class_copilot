@@ -1,12 +1,14 @@
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Select } from "@/components/ui/Select";
 import { useSettingsStore } from "@/stores/settings";
-import type { AnswerType, AsrModel, Language } from "@/api/types";
+import type { AnswerType, AsrModel, OutputLanguage } from "@/api/types";
 import { Sparkles } from "lucide-react";
+import { useI18n } from "@/i18n";
 
 export function ModelSection() {
   const settings = useSettingsStore((state) => state.settings);
   const update = useSettingsStore((state) => state.update);
+  const { t } = useI18n();
   if (!settings) return null;
 
   return (
@@ -15,14 +17,14 @@ export function ModelSection() {
         title={
           <span className="inline-flex items-center gap-2">
             <Sparkles size={14} />
-            模型与回答
+            {t.model_title}
           </span>
         }
-        description="实时 ASR 模型仅在下次会话生效；自动参考答案输出风格与语言立即生效。"
+        description={t.model_desc}
       />
       <CardBody>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <Field label="实时 ASR 模型">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Field label={t.model_field_asrModel}>
             <Select
               value={settings.asr_model}
               onChange={(event) => {
@@ -33,30 +35,64 @@ export function ModelSection() {
               <option value="qwen3.5-omni-plus-realtime">qwen3.5-omni-plus-realtime</option>
             </Select>
           </Field>
-          <Field label="自动参考答案输出风格">
+          <Field label={t.model_field_asrLanguage}>
+            <Select
+              value={settings.asr_language}
+              onChange={(event) => {
+                void update({ asr_language: event.target.value as OutputLanguage });
+              }}
+            >
+              <option value="zh">{t.model_lang_zh}</option>
+              <option value="en">{t.model_lang_en}</option>
+              <option value="bilingual">{t.model_lang_bilingual}</option>
+            </Select>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {t.model_asrLanguage_hint}
+            </p>
+          </Field>
+          <Field label={t.model_field_autoAnswerType}>
             <Select
               value={settings.auto_answer_type}
               onChange={(event) => {
                 void update({ auto_answer_type: event.target.value as AnswerType });
               }}
             >
-              <option value="brief">简要输出</option>
-              <option value="detailed">详细输出</option>
+              <option value="brief">{t.model_answer_brief}</option>
+              <option value="detailed">{t.model_answer_detailed}</option>
             </Select>
-            <p className="text-xs text-slate-500">
-              作为提示词注入到自动参考答案生成模型，控制检测到课堂问题后的回答详略；不影响主动提问聊天。
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {t.model_autoAnswerType_hint}
             </p>
           </Field>
-          <Field label="语言">
+          <Field label={t.model_field_autoAnswerLanguage}>
             <Select
-              value={settings.language}
+              value={settings.auto_answer_language}
               onChange={(event) => {
-                void update({ language: event.target.value as Language });
+                void update({ auto_answer_language: event.target.value as OutputLanguage });
               }}
             >
-              <option value="zh">中文</option>
-              <option value="en">English</option>
+              <option value="zh">{t.model_lang_zh}</option>
+              <option value="en">{t.model_lang_en}</option>
+              <option value="bilingual">{t.model_lang_bilingual}</option>
             </Select>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {t.model_autoAnswerLanguage_hint}
+            </p>
+          </Field>
+          <Field label={t.model_field_chatLanguage}>
+            <Select
+              value={settings.chat_language}
+              onChange={(event) => {
+                void update({ chat_language: event.target.value as OutputLanguage });
+              }}
+            >
+              <option value="zh">{t.model_lang_zh}</option>
+              <option value="en">{t.model_lang_en}</option>
+              <option value="bilingual">{t.model_lang_bilingual}</option>
+            </Select>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {t.model_chatLanguage_hint}
+            </p>
           </Field>
         </div>
       </CardBody>

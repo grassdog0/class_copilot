@@ -5,11 +5,13 @@ import { useSettingsStore } from "@/stores/settings";
 import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
 import { Mic2 } from "lucide-react";
 import type { SettingsPatch } from "@/api/types";
+import { useI18n, tpl } from "@/i18n";
 
 export function AsrParamsSection() {
   const settings = useSettingsStore((state) => state.settings);
   const patchLocal = useSettingsStore((state) => state.patchLocal);
   const update = useSettingsStore((state) => state.update);
+  const { t } = useI18n();
 
   const debouncedUpdate = useDebouncedCallback((partial: SettingsPatch) => {
     void update(partial);
@@ -28,15 +30,15 @@ export function AsrParamsSection() {
         title={
           <span className="inline-flex items-center gap-2">
             <Mic2 size={14} />
-            ASR 与 VAD 参数
+            {t.asr_title}
           </span>
         }
-        description="调整后下次会话生效。"
+        description={t.asr_desc}
       />
       <CardBody className="grid grid-cols-1 gap-5 md:grid-cols-2">
         <Field
-          label="VAD 阈值"
-          hint={`当前：${settings.vad_threshold.toFixed(2)} （0 灵敏 - 1 严格）`}
+          label={t.asr_vad_threshold}
+          hint={tpl(t.asr_vad_threshold_hint, { value: settings.vad_threshold.toFixed(2) })}
         >
           <Slider
             min={0}
@@ -46,7 +48,7 @@ export function AsrParamsSection() {
             onChange={(value) => onChange("vad_threshold", Number(value.toFixed(2)))}
           />
         </Field>
-        <Field label="VAD 前置静音 (ms)">
+        <Field label={t.asr_vad_prefix}>
           <Input
             type="number"
             min={0}
@@ -56,7 +58,7 @@ export function AsrParamsSection() {
             }
           />
         </Field>
-        <Field label="VAD 静音持续 (ms)">
+        <Field label={t.asr_vad_silence}>
           <Input
             type="number"
             min={0}
@@ -66,7 +68,7 @@ export function AsrParamsSection() {
             }
           />
         </Field>
-        <Field label="ASR 会话轮换 (分钟)">
+        <Field label={t.asr_session_rotate}>
           <Input
             type="number"
             min={1}
@@ -77,7 +79,7 @@ export function AsrParamsSection() {
             }
           />
         </Field>
-        <Field label="最大段落长度 (秒)">
+        <Field label={t.asr_max_segment}>
           <Input
             type="number"
             min={0}
@@ -106,7 +108,7 @@ function Field({
     <div className="flex flex-col gap-1.5">
       <label className="label">{label}</label>
       {children}
-      {hint ? <span className="text-xs text-slate-500">{hint}</span> : null}
+      {hint ? <span className="text-xs text-slate-500 dark:text-slate-400">{hint}</span> : null}
     </div>
   );
 }
