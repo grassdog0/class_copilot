@@ -237,7 +237,7 @@ class ASRPipeline:
         try:
             await self.asr.stop()
             await asyncio.sleep(0.2)
-            await self.asr.start(language=self.settings_service.runtime.language)
+            await self.asr.start(language=self.settings_service.runtime.asr_language)
             return True
         except (ASRConnectionError, ASRPermanentError):
             return False
@@ -361,7 +361,7 @@ class SessionService:
         audio_queue: asyncio.Queue[bytes] = asyncio.Queue(maxsize=200)
         asr = self.asr_factory(api_key)
         try:
-            await asr.start(language=self.settings_service.runtime.language)
+            await asr.start(language=self.settings_service.runtime.asr_language)
         except Exception:
             async with self.sessionmaker() as db:
                 await SessionRepository(db).finish(

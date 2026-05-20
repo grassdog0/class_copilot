@@ -26,7 +26,7 @@ class QuestionDetector:
             elapsed = time.monotonic() - self._last_detected_at
             if elapsed < settings.question_cooldown_seconds:
                 return None
-        detected = await self._llm.detect_question(context=context, language=settings.language)
+        detected = await self._llm.detect_question(context=context)
         if detected is None:
             return None
         if detected.confidence < settings.question_confidence_threshold:
@@ -72,7 +72,7 @@ class AnswerGenerator:
             question=question_text,
             context=context_text,
             answer_type=answer_type,
-            language=settings.language,
+            language=settings.auto_answer_language,
         ):
             full_text += chunk
             await broadcast(

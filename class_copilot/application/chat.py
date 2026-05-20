@@ -31,7 +31,7 @@ class ChatService:
         async for chunk in self._llm.chat(
             messages=messages,
             model=model,
-            language=settings.language,
+            language=settings.chat_language,
         ):
             full_text += chunk
             await broadcast({"type": "chat_chunk", "data": {"chunk": chunk, "full_text": full_text}})

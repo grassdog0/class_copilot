@@ -34,16 +34,13 @@ class DashScopeCompatibleLLM:
             raise ConfigurationError("DashScope API Key 未设置")
         return self._client
 
-    async def detect_question(self, *, context: str, language: str) -> DetectedQuestion | None:
+    async def detect_question(self, *, context: str) -> DetectedQuestion | None:
         client = self._require_client()
         prompt = (
-            "你是课堂实时助手。判断下面课堂转写中是否出现了一个明确的问题。"
-            "只输出 JSON："
+            "你是课堂实时助手。判断下面课堂转写中是否出现了一个明确的课堂问题。"
+            "课堂内容可能是中文、英文或中英混合。不要生成答案。只输出 JSON："
             '{"has_question": boolean, "question_text": string, "confidence": number, '
             '"context_text": string}。没有问题时 has_question=false。'
-            if language == "zh"
-            else "You detect whether the transcript contains a clear classroom question. "
-            "Return only JSON with has_question, question_text, confidence, context_text."
         )
         response = await client.chat.completions.create(
             model="qwen3.5-flash",
@@ -78,10 +75,23 @@ class DashScopeCompatibleLLM:
         answer_type: str,
         language: str,
     ) -> AsyncIterator[str]:
-        style = "简洁回答，适合课堂上快速参考。" if answer_type == "brief" else "详细解释，包含步骤和要点。"
         if language == "en":
-            style = "Answer briefly for quick classroom reference." if answer_type == "brief" else (
-                "Answer in detail with steps and key points."
+            style = (
+                "Answer briefly in English for quick classroom reference."
+                if answer_type == "brief"
+                else "Answer in English in detail with steps and key points."
+            )
+        elif language == "bilingual":
+            style = (
+                "用中文和英文双语简洁回答，适合课堂上快速参考。"
+                if answer_type == "brief"
+                else "用中文和英文双语详细解释，包含步骤和要点。"
+            )
+        else:
+            style = (
+                "用中文简洁回答，适合课堂上快速参考。"
+                if answer_type == "brief"
+                else "用中文详细解释，包含步骤和要点。"
             )
         messages = [
             {"role": "system", "content": f"你是听课助手。{style}不要编造课堂上下文之外的信息。"},
@@ -97,9 +107,11 @@ class DashScopeCompatibleLLM:
         model: str,
         language: str,
     ) -> AsyncIterator[str]:
-        system = "你是听课助手，回答要结合当前课堂记录，无法确定时说明不确定。"
+        system = "你是听课助手，用中文回答；回答要结合当前课堂记录，无法确定时说明不确定。"
         if language == "en":
-            system = "You are a class copilot. Use the lecture context and say when uncertain."
+            system = "You are a class copilot. Answer in English. Use the lecture context and say when uncertain."
+        elif language == "bilingual":
+            system = "你是听课助手。请用中文和英文双语回答；回答要结合当前课堂记录，无法确定时说明不确定。"
         payload = [{"role": "system", "content": system}] + [
             {"role": item.role, "content": item.content} for item in messages
         ]

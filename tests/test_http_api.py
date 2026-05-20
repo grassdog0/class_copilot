@@ -16,9 +16,25 @@ async def test_courses_settings_and_session_export(client, app):
     assert settings.json()["dashscope_api_key"] == "sk-t****"
     assert settings.json()["dashscope_api_key_set"] is True
 
-    patched = await client.patch("/api/settings", json={"language": "en"})
+    patched = await client.patch(
+        "/api/settings",
+        json={
+            "asr_language": "bilingual",
+            "auto_answer_language": "en",
+            "chat_language": "zh",
+        },
+    )
     assert patched.status_code == 200
-    assert patched.json()["language"] == "en"
+    assert patched.json()["asr_language"] == "bilingual"
+    assert patched.json()["auto_answer_language"] == "en"
+    assert patched.json()["chat_language"] == "zh"
+
+    legacy = await client.patch("/api/settings", json={"language": "en"})
+    assert legacy.status_code == 200
+    assert legacy.json()["language"] == "en"
+    assert legacy.json()["asr_language"] == "en"
+    assert legacy.json()["auto_answer_language"] == "en"
+    assert legacy.json()["chat_language"] == "en"
 
     async with app.state.sessionmaker() as db:
         session = await SessionRepository(db).create(

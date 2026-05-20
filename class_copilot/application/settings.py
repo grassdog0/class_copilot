@@ -16,6 +16,9 @@ from class_copilot.infrastructure.persistence.repositories import SettingsReposi
 class RuntimeSettings:
     dashscope_api_key: str = ""
     language: str = "zh"
+    asr_language: str = "zh"
+    auto_answer_language: str = "zh"
+    chat_language: str = "zh"
     auto_answer_type: str = "brief"
     asr_model: str = "qwen3.5-omni-flash-realtime"
     chat_model_default: str = "qwen3.5-plus"
@@ -35,6 +38,9 @@ class RuntimeSettings:
 SETTING_TYPES: dict[str, Callable[[str], Any]] = {
     "dashscope_api_key": str,
     "language": str,
+    "asr_language": str,
+    "auto_answer_language": str,
+    "chat_language": str,
     "auto_answer_type": str,
     "asr_model": str,
     "chat_model_default": str,
@@ -87,10 +93,18 @@ class SettingsService:
                     logger.error("Encrypted setting cannot be decrypted: {}", key)
                     continue
             values[key] = self._parse_value(key, raw)
+        if "language" in rows:
+            legacy_language = values["language"]
+            for key in ("asr_language", "auto_answer_language", "chat_language"):
+                if key not in rows:
+                    values[key] = legacy_language
         self._runtime = RuntimeSettings(**values)
         return self._runtime
 
     async def update(self, partial: dict[str, Any]) -> RuntimeSettings:
+        if "language" in partial:
+            for key in ("asr_language", "auto_answer_language", "chat_language"):
+                partial.setdefault(key, partial["language"])
         clean: dict[str, Any] = {}
         for key, value in partial.items():
             if key not in SETTING_TYPES:
@@ -135,6 +149,12 @@ class SettingsService:
     def _validate_value(self, key: str, value: Any) -> Any:
         if key == "language" and value not in {"zh", "en"}:
             raise ConfigurationError("language must be zh or en")
+        if key in {"asr_language", "auto_answer_language", "chat_language"} and value not in {
+            "zh",
+            "en",
+            "bilingual",
+        }:
+            raise ConfigurationError(f"{key} must be zh, en, or bilingual")
         if key == "auto_answer_type" and value not in {"brief", "detailed"}:
             raise ConfigurationError("auto_answer_type must be brief or detailed")
         if key == "asr_model" and value not in {

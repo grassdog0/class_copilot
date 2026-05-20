@@ -102,7 +102,7 @@ class QwenOmniRealtimeASR:
         self._last_text_activity_monotonic = time.monotonic()
 
     async def rotate_session(self) -> None:
-        language = self.settings.language
+        language = self.settings.asr_language
         await self.stop()
         await asyncio.sleep(0.2)
         await self.start(language=language)
@@ -112,6 +112,11 @@ class QwenOmniRealtimeASR:
         prompt = ""
         if self.prompt_provider:
             prompt = await self.prompt_provider()
+        language_instruction = {
+            "zh": "Transcribe classroom audio in Chinese.",
+            "en": "Transcribe classroom audio in English.",
+            "bilingual": "Transcribe bilingual classroom audio. Preserve both Chinese and English as spoken.",
+        }.get(language, "Transcribe classroom audio.")
         payload = {
             "type": "session.update",
             "session": {
@@ -124,7 +129,7 @@ class QwenOmniRealtimeASR:
                     "silence_duration_ms": self.settings.vad_silence_duration_ms,
                 },
                 "instructions": (
-                    f"Transcribe classroom audio in {language}. "
+                    f"{language_instruction} "
                     f"Use this previous lecture context when helpful:\n{prompt[-4000:]}"
                 ),
             },

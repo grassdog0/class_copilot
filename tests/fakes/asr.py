@@ -17,6 +17,7 @@ class FakeASR:
         self.force_commit_count = 0
         self.rotate_count = 0
         self.sent_audio: list[bytes] = []
+        self.started_languages: list[str] = []
         self._last_text = time.monotonic()
 
     @property
@@ -27,6 +28,7 @@ class FakeASR:
         return None
 
     async def start(self, *, language: str) -> None:
+        self.started_languages.append(language)
         self.is_running = True
         self.is_disconnected = False
 

@@ -9,6 +9,9 @@ class FakeLLM:
     def __init__(self) -> None:
         self.api_key = None
         self.detect_calls = 0
+        self.detect_contexts: list[str] = []
+        self.answer_languages: list[str] = []
+        self.chat_languages: list[str] = []
         self.generated_questions: list[str] = []
         self.detected = DetectedQuestion(
             question_text="什么是向量空间？",
@@ -19,8 +22,9 @@ class FakeLLM:
     def set_api_key(self, api_key: str | None) -> None:
         self.api_key = api_key
 
-    async def detect_question(self, *, context: str, language: str) -> DetectedQuestion | None:
+    async def detect_question(self, *, context: str) -> DetectedQuestion | None:
         self.detect_calls += 1
+        self.detect_contexts.append(context)
         if "?" in context or "？" in context or "什么" in context:
             return self.detected
         return None
@@ -34,6 +38,7 @@ class FakeLLM:
         language: str,
     ) -> AsyncIterator[str]:
         self.generated_questions.append(question)
+        self.answer_languages.append(language)
         yield "向量空间是"
         yield "满足线性运算封闭的集合。"
 
@@ -44,4 +49,5 @@ class FakeLLM:
         model: str,
         language: str,
     ) -> AsyncIterator[str]:
+        self.chat_languages.append(language)
         yield "这是主动回答。"

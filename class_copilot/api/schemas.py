@@ -20,6 +20,9 @@ class SessionPatch(BaseModel):
 class SettingsPatch(BaseModel):
     dashscope_api_key: str | None = None
     language: Literal["zh", "en"] | None = None
+    asr_language: Literal["zh", "en", "bilingual"] | None = None
+    auto_answer_language: Literal["zh", "en", "bilingual"] | None = None
+    chat_language: Literal["zh", "en", "bilingual"] | None = None
     auto_answer_type: Literal["brief", "detailed"] | None = None
     asr_model: Literal["qwen3.5-omni-flash-realtime", "qwen3.5-omni-plus-realtime"] | None = None
     chat_model_default: str | None = None
