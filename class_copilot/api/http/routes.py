@@ -159,15 +159,17 @@ async def get_recording(session_id: str, request: Request):
 
 @router.get("/settings")
 async def get_settings(request: Request):
-    return request.app.state.settings_service.public_dict()
+    return settings_to_response(request)
 
 
 @router.patch("/settings")
 async def patch_settings(payload: SettingsPatch, request: Request):
     partial = payload.model_dump(exclude_unset=True)
+    if partial.get("audio_source") == "file" and not request.app.state.config.debug_audio_file:
+        raise HTTPException(status_code=403, detail="本地音频文件音源仅在调试模式开放")
     settings = await request.app.state.settings_service.update(partial)
     request.app.state.llm.set_api_key(settings.dashscope_api_key)
-    return request.app.state.settings_service.public_dict()
+    return settings_to_response(request)
 
 
 @router.get("/audio/devices")
@@ -318,3 +320,11 @@ def safe_filename(value: str) -> str:
 def content_disposition(filename: str) -> str:
     ascii_fallback = re.sub(r"[^A-Za-z0-9._-]+", "_", filename).strip("_") or "download"
     return f"attachment; filename=\"{ascii_fallback}\"; filename*=UTF-8''{quote(filename)}"
+
+
+def settings_to_response(request: Request) -> dict:
+    data = request.app.state.settings_service.public_dict()
+    data["debug_audio_file"] = request.app.state.config.debug_audio_file
+    if not request.app.state.config.debug_audio_file and data.get("audio_source") == "file":
+        data["audio_source"] = "microphone"
+    return data

@@ -37,6 +37,9 @@ class QwenOmniRealtimeASR:
         self._reader_task: asyncio.Task[None] | None = None
         self._started_monotonic = 0.0
         self._last_text_activity_monotonic = time.monotonic()
+        self._language = "zh"
+        self._manual_turn_detection = False
+        self._context = ""
 
     @property
     def last_text_activity_elapsed(self) -> float:
@@ -46,7 +49,7 @@ class QwenOmniRealtimeASR:
         if not self.api_key:
             raise ConfigurationError("DashScope API Key 未设置")
 
-    async def start(self, *, language: str) -> None:
+    async def start(self, *, language: str, manual_turn_detection: bool = False) -> None:
         await self.pre_connect()
         url = f"{REALTIME_URL}?model={self.settings.asr_model}"
         try:
@@ -56,7 +59,13 @@ class QwenOmniRealtimeASR:
                 ping_interval=20,
                 ping_timeout=20,
             )
-            await self._send_session_update(language=language)
+            self._language = language
+            self._manual_turn_detection = manual_turn_detection
+            self._context = ""
+            await self._send_session_update(
+                language=language,
+                manual_turn_detection=manual_turn_detection,
+            )
         except Exception as exc:
             self.is_disconnected = True
             raise ASRConnectionError("ASR 连接失败") from exc
@@ -82,6 +91,18 @@ class QwenOmniRealtimeASR:
         if time.monotonic() - self._started_monotonic >= self.settings.asr_session_rotate_minutes * 60:
             self.needs_rotation = True
 
+    async def update_context(self, context: str) -> None:
+        if not self.is_running or self._ws is None:
+            return
+        cleaned = context.strip()
+        if cleaned == self._context:
+            return
+        self._context = cleaned
+        await self._send_session_update(
+            language=self._language,
+            manual_turn_detection=self._manual_turn_detection,
+        )
+
     async def stop(self) -> None:
         self.is_running = False
         if self._reader_task:
@@ -98,39 +119,58 @@ class QwenOmniRealtimeASR:
         if self._ws is None:
             return
         await self._ws.send(json.dumps({"type": "input_audio_buffer.commit"}))
-        await self._ws.send(json.dumps({"type": "response.create"}))
         self._last_text_activity_monotonic = time.monotonic()
+
+    async def finish_session(self) -> None:
+        if self._ws is None:
+            return
+        await self._ws.send(json.dumps({"type": "session.finish"}))
 
     async def rotate_session(self) -> None:
         language = self.settings.asr_language
+        context = self._context
         await self.stop()
         await asyncio.sleep(0.2)
         await self.start(language=language)
+        if context:
+            await self.update_context(context)
         self.needs_rotation = False
 
-    async def _send_session_update(self, *, language: str) -> None:
-        prompt = ""
-        if self.prompt_provider:
+    async def _send_session_update(self, *, language: str, manual_turn_detection: bool) -> None:
+        context = self._context
+        if not context and self.prompt_provider:
             prompt = await self.prompt_provider()
+            context = _trim_context_by_paragraph(prompt, 1000)
         language_instruction = {
-            "zh": "Transcribe classroom audio in Chinese.",
-            "en": "Transcribe classroom audio in English.",
-            "bilingual": "Transcribe bilingual classroom audio. Preserve both Chinese and English as spoken.",
+            "zh": "Transcribe Chinese classroom audio verbatim. Do not translate foreign-language speech.",
+            "en": "Transcribe English classroom audio verbatim. Do not translate foreign-language speech.",
+            "bilingual": (
+                "Transcribe bilingual classroom audio verbatim. Preserve each utterance in the "
+                "language actually spoken, and do not translate between Chinese and English."
+            ),
         }.get(language, "Transcribe classroom audio.")
         payload = {
             "type": "session.update",
             "session": {
                 "modalities": ["text"],
-                "input_audio_format": "pcm16",
-                "turn_detection": {
+                "input_audio_format": "pcm",
+                "sample_rate": 16000,
+                "input_audio_transcription": {
+                    "language": "zh" if language == "bilingual" else language,
+                },
+                "turn_detection": None
+                if manual_turn_detection
+                else {
                     "type": "semantic_vad",
                     "threshold": self.settings.vad_threshold,
                     "prefix_padding_ms": self.settings.vad_prefix_padding_ms,
                     "silence_duration_ms": self.settings.vad_silence_duration_ms,
                 },
                 "instructions": (
-                    f"{language_instruction} "
-                    f"Use this previous lecture context when helpful:\n{prompt[-4000:]}"
+                    f"{language_instruction} Output only the transcript text. "
+                    "The previous transcript context below is only for continuity and disambiguation. "
+                    "Do not copy it unless it is actually spoken in the current audio.\n"
+                    f"Previous transcript context:\n{context}"
                 ),
             },
         }
@@ -152,6 +192,8 @@ class QwenOmniRealtimeASR:
 
     async def _handle_event(self, data: dict[str, Any]) -> None:
         event_type = str(data.get("type") or "")
+        if event_type == "session.finished":
+            return
         if event_type in {"error", "session.error"}:
             error = data.get("error") or {}
             code = error.get("code") or data.get("code") or "unknown"
@@ -160,12 +202,16 @@ class QwenOmniRealtimeASR:
                 self.is_permanent_error = True
             return
 
-        text = (
-            data.get("transcript")
-            or data.get("text")
-            or (data.get("delta") if isinstance(data.get("delta"), str) else None)
-        )
-        is_final = event_type.endswith(".done") or event_type.endswith(".completed")
+        text = None
+        is_final = False
+        if event_type == "conversation.item.input_audio_transcription.completed":
+            text = data.get("transcript")
+            is_final = True
+        elif event_type in {
+            "conversation.item.input_audio_transcription.text",
+            "conversation.item.input_audio_transcription.delta",
+        }:
+            text = f"{data.get('text', '')}{data.get('stash', '')}"
         if text:
             self._last_text_activity_monotonic = time.monotonic()
             now = time.time()
@@ -177,3 +223,18 @@ class QwenOmniRealtimeASR:
                     end_time=float(data.get("audio_end_ms", 0) or now * 1000) / 1000,
                 )
             )
+
+
+def _trim_context_by_paragraph(text: str, max_chars: int) -> str:
+    paragraphs = [line.strip() for line in text.splitlines() if line.strip()]
+    selected: list[str] = []
+    total = 0
+    for paragraph in reversed(paragraphs):
+        if len(paragraph) > max_chars:
+            break
+        extra = len(paragraph) + (1 if selected else 0)
+        if total + extra > max_chars:
+            break
+        selected.append(paragraph)
+        total += extra
+    return "\n".join(reversed(selected))

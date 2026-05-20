@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import difflib
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -34,6 +36,13 @@ from class_copilot.infrastructure.persistence.orm import Session as SessionModel
 
 
 Broadcast = Callable[[dict], Awaitable[None]]
+PCM16_BYTES_PER_SECOND = 16000 * 2
+FILE_SEGMENT_MIN_SECONDS = 24
+FILE_SEGMENT_MAX_SECONDS = 58
+FILE_SEGMENT_SILENCE_SECONDS = 0.4
+FILE_SEGMENT_MIN_SILENCE_RMS = 250.0
+FILE_SEGMENT_MAX_SILENCE_RMS = 700.0
+ASR_CONTEXT_MAX_CHARS = 1000
 
 
 @dataclass(slots=True)
@@ -70,6 +79,11 @@ class ASRPipeline:
         self.stop_callback = stop_callback
         self.is_listening = True
         self._tasks: list[asyncio.Task] = []
+        self._recent_final_transcripts: list[str] = []
+        self._recent_context_transcripts: list[str] = []
+        self._file_segment_bytes = 0
+        self._file_silence_bytes = 0
+        self._file_peak_rms = 0.0
 
     def start(self) -> None:
         self._tasks = [
@@ -80,9 +94,13 @@ class ASRPipeline:
 
     async def stop(self) -> None:
         self.is_listening = False
+        current_task = asyncio.current_task()
         for task in self._tasks:
-            task.cancel()
+            if task is not current_task:
+                task.cancel()
         for task in self._tasks:
+            if task is current_task:
+                continue
             try:
                 await task
             except asyncio.CancelledError:
@@ -92,13 +110,60 @@ class ASRPipeline:
     async def _feed_audio(self) -> None:
         while self.is_listening:
             pcm = await self.audio_queue.get()
-            if pcm:
-                await self.asr.send_audio(pcm)
+            if not pcm:
+                if self.settings_service.runtime.audio_source == "file":
+                    if self._file_segment_bytes > 0:
+                        await self.asr.force_commit()
+                        self._reset_file_segment_state()
+                    await self.asr.finish_session()
+                    asyncio.create_task(self._stop_after_file_flush())
+                    return
+                continue
+            await self.asr.send_audio(pcm)
+            if self.settings_service.runtime.audio_source == "file":
+                if self._should_commit_file_segment(pcm):
+                    await self.asr.force_commit()
+                    self._reset_file_segment_state()
+
+    def _should_commit_file_segment(self, pcm: bytes) -> bool:
+        self._file_segment_bytes += len(pcm)
+        rms = _pcm16_rms(pcm)
+        self._file_peak_rms = max(self._file_peak_rms, rms)
+        silence_threshold = max(
+            FILE_SEGMENT_MIN_SILENCE_RMS,
+            min(FILE_SEGMENT_MAX_SILENCE_RMS, self._file_peak_rms * 0.12),
+        )
+        if rms <= silence_threshold:
+            self._file_silence_bytes += len(pcm)
+        else:
+            self._file_silence_bytes = 0
+
+        if self._file_segment_bytes >= PCM16_BYTES_PER_SECOND * FILE_SEGMENT_MAX_SECONDS:
+            return True
+        return (
+            self._file_segment_bytes >= PCM16_BYTES_PER_SECOND * FILE_SEGMENT_MIN_SECONDS
+            and self._file_silence_bytes
+            >= int(PCM16_BYTES_PER_SECOND * FILE_SEGMENT_SILENCE_SECONDS)
+        )
+
+    def _reset_file_segment_state(self) -> None:
+        self._file_segment_bytes = 0
+        self._file_silence_bytes = 0
+        self._file_peak_rms = 0.0
+
+    async def _stop_after_file_flush(self) -> None:
+        await asyncio.sleep(8)
+        if self.is_listening:
+            await self.stop_callback("stopped")
 
     async def _process_results(self) -> None:
         while self.is_listening:
             result: ASRResult = await self.asr.result_queue.get()
             if result.is_final:
+                if self._is_duplicate_transcript(result.text):
+                    continue
+                self._remember_transcript(result.text)
+                asr_context = self._rolling_asr_context()
                 async with self.sessionmaker() as db:
                     tx_repo = TranscriptionRepository(db)
                     sequence = await tx_repo.next_sequence(self.session_id)
@@ -111,6 +176,7 @@ class ASRPipeline:
                         is_final=True,
                     )
                     context = await tx_repo.recent_text(self.session_id)
+                await self.asr.update_context(asr_context)
                 await self.broadcast(
                     {
                         "type": "transcription",
@@ -139,6 +205,29 @@ class ASRPipeline:
                         },
                     }
                 )
+
+    def _is_duplicate_transcript(self, text: str) -> bool:
+        normalized = _normalize_transcript(text)
+        if len(normalized) < 12:
+            return False
+        for previous in self._recent_final_transcripts[-4:]:
+            if normalized in previous or previous in normalized:
+                return True
+            if difflib.SequenceMatcher(a=previous, b=normalized).ratio() >= 0.82:
+                return True
+        return False
+
+    def _remember_transcript(self, text: str) -> None:
+        normalized = _normalize_transcript(text)
+        if not normalized:
+            return
+        self._recent_final_transcripts.append(normalized)
+        self._recent_final_transcripts = self._recent_final_transcripts[-8:]
+        self._recent_context_transcripts.append(text.strip())
+        self._recent_context_transcripts = self._recent_context_transcripts[-8:]
+
+    def _rolling_asr_context(self) -> str:
+        return _paragraph_context(self._recent_context_transcripts, ASR_CONTEXT_MAX_CHARS)
 
     async def manual_detect(self) -> None:
         async with self.sessionmaker() as db:
@@ -227,7 +316,8 @@ class ASRPipeline:
                 await self.asr.rotate_session()
             settings = self.settings_service.runtime
             if (
-                settings.vad_max_segment_seconds > 0
+                settings.audio_source != "file"
+                and settings.vad_max_segment_seconds > 0
                 and self.asr.last_text_activity_elapsed >= settings.vad_max_segment_seconds
             ):
                 await self.asr.force_commit()
@@ -339,6 +429,11 @@ class SessionService:
         if self.state.is_listening:
             raise ConfigurationError("已有会话正在监听")
         api_key = self.settings_service.require_api_key()
+        settings = self.settings_service.runtime
+        if settings.audio_source == "file" and not self.config.debug_audio_file:
+            raise ConfigurationError("本地音频文件音源仅在调试模式开放")
+        if settings.audio_source == "file" and not settings.audio_file_path.strip():
+            raise ConfigurationError("请先在设置中填写本地音频文件路径")
         async with self.sessionmaker() as db:
             course = await CourseRepository(db).get(course_id)
             now = datetime.now(UTC)
@@ -361,7 +456,10 @@ class SessionService:
         audio_queue: asyncio.Queue[bytes] = asyncio.Queue(maxsize=200)
         asr = self.asr_factory(api_key)
         try:
-            await asr.start(language=self.settings_service.runtime.asr_language)
+            await asr.start(
+                language=settings.asr_language,
+                manual_turn_detection=settings.audio_source == "file",
+            )
         except Exception:
             async with self.sessionmaker() as db:
                 await SessionRepository(db).finish(
@@ -372,8 +470,9 @@ class SessionService:
             self.state = ListeningState()
             raise
         self._capture = self.capture_factory(
-            audio_source=self.settings_service.runtime.audio_source,
-            audio_device_id=self.settings_service.runtime.audio_device_id,
+            audio_source=settings.audio_source,
+            audio_device_id=settings.audio_device_id,
+            audio_file_path=settings.audio_file_path,
             output_path=recording_path,
             audio_queue=audio_queue,
         )
@@ -458,3 +557,32 @@ class SessionService:
             return ""
         async with self.sessionmaker() as db:
             return await TranscriptionRepository(db).recent_text(self.state.session_id, limit=20)
+
+
+def _normalize_transcript(text: str) -> str:
+    return re.sub(r"\W+", "", text, flags=re.UNICODE).lower()
+
+
+def _paragraph_context(paragraphs: list[str], max_chars: int) -> str:
+    selected: list[str] = []
+    total = 0
+    for paragraph in reversed([p.strip() for p in paragraphs if p.strip()]):
+        if len(paragraph) > max_chars:
+            break
+        extra = len(paragraph) + (1 if selected else 0)
+        if total + extra > max_chars:
+            break
+        selected.append(paragraph)
+        total += extra
+    return "\n".join(reversed(selected))
+
+
+def _pcm16_rms(pcm: bytes) -> float:
+    if len(pcm) < 2:
+        return 0.0
+    sample_count = len(pcm) // 2
+    total = 0
+    for index in range(0, sample_count * 2, 2):
+        sample = int.from_bytes(pcm[index : index + 2], byteorder="little", signed=True)
+        total += sample * sample
+    return (total / sample_count) ** 0.5

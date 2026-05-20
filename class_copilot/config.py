@@ -17,6 +17,7 @@ class AppConfig(BaseSettings):
 
     data_dir: Path = Field(default=Path("data"))
     force_ipv4: bool = True
+    debug_audio_file: bool = False
 
     @property
     def log_dir(self) -> Path:

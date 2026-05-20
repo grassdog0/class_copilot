@@ -20,9 +20,17 @@ from tests.fakes.llm import FakeLLM
 
 
 class FakeCapture:
-    def __init__(self, *, output_path: Path, audio_queue: asyncio.Queue[bytes], **kwargs) -> None:
+    def __init__(
+        self,
+        *,
+        output_path: Path,
+        audio_queue: asyncio.Queue[bytes],
+        audio_file_path: str = "",
+        **kwargs,
+    ) -> None:
         self.output_path = output_path
         self.audio_queue = audio_queue
+        self.audio_file_path = audio_file_path
         self.started_at = 0
 
     async def __aenter__(self):

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import { useSettingsStore } from "@/stores/settings";
 import { getAudioDevices } from "@/api/audio";
 import type { AudioDevicesResponse, AudioSource, SettingsPatch } from "@/api/types";
@@ -55,6 +56,7 @@ export function AudioSection() {
       // toast handled in store
     }
   };
+  const debugAudioFile = settings.debug_audio_file;
 
   return (
     <Card>
@@ -65,7 +67,7 @@ export function AudioSection() {
             {t.audio_title}
           </span>
         }
-        description={t.audio_desc}
+        description={debugAudioFile ? t.audio_desc_debug : t.audio_desc}
         actions={
           <Button variant="ghost" size="sm" onClick={() => void refresh()}>
             <RefreshCcw size={12} />
@@ -89,6 +91,7 @@ export function AudioSection() {
               <option value="loopback" disabled={!devices?.loopback.available}>
                 {t.audio_source_loopback}{devices && !devices.loopback.available ? t.audio_source_loopback_unavailable : ""}
               </option>
+              {debugAudioFile ? <option value="file">{t.audio_source_file}</option> : null}
             </Select>
           </Field>
           <Field label={t.audio_device}>
@@ -114,7 +117,7 @@ export function AudioSection() {
                   </option>
                 ))}
               </Select>
-            ) : (
+            ) : settings.audio_source === "loopback" ? (
               <Select
                 value={settings.audio_device_id == null ? "" : String(settings.audio_device_id)}
                 disabled={!devices?.loopback.available}
@@ -132,11 +135,28 @@ export function AudioSection() {
                   </option>
                 ))}
               </Select>
+            ) : debugAudioFile && settings.audio_source === "file" ? (
+              <Input
+                value={settings.audio_file_path}
+                onChange={(event) => void updateField({ audio_file_path: event.target.value })}
+                placeholder={t.audio_file_path_placeholder}
+              />
+            ) : (
+              <div className="text-sm text-slate-500 dark:text-slate-400">
+                {t.common_dash}
+              </div>
             )}
           </Field>
         </div>
+        {debugAudioFile && settings.audio_source === "file" ? (
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            {t.audio_file_path_hint}
+          </p>
+        ) : null}
 
-        <MicTest active={testing} onToggle={() => setTesting((v) => !v)} />
+        {debugAudioFile && settings.audio_source === "file" ? null : (
+          <MicTest active={testing} onToggle={() => setTesting((v) => !v)} />
+        )}
       </CardBody>
     </Card>
   );

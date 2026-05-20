@@ -35,6 +35,13 @@ async def test_courses_settings_and_session_export(client, app):
     assert legacy.json()["asr_language"] == "en"
     assert legacy.json()["auto_answer_language"] == "en"
     assert legacy.json()["chat_language"] == "en"
+    assert legacy.json()["debug_audio_file"] is False
+
+    file_source = await client.patch(
+        "/api/settings",
+        json={"audio_source": "file", "audio_file_path": str(app.state.config.data_dir / "demo.mp3")},
+    )
+    assert file_source.status_code == 403
 
     async with app.state.sessionmaker() as db:
         session = await SessionRepository(db).create(

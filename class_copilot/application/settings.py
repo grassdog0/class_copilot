@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Any
 
 from loguru import logger
@@ -33,6 +34,7 @@ class RuntimeSettings:
     question_similarity_threshold: float = 0.8
     audio_source: str = "microphone"
     audio_device_id: int | str | None = None
+    audio_file_path: str = ""
 
 
 SETTING_TYPES: dict[str, Callable[[str], Any]] = {
@@ -55,6 +57,7 @@ SETTING_TYPES: dict[str, Callable[[str], Any]] = {
     "question_similarity_threshold": float,
     "audio_source": str,
     "audio_device_id": lambda value: None if value == "" else value,
+    "audio_file_path": str,
 }
 
 ENCRYPTED_KEYS = {"dashscope_api_key"}
@@ -162,8 +165,10 @@ class SettingsService:
             "qwen3.5-omni-plus-realtime",
         }:
             raise ConfigurationError("unsupported asr_model")
-        if key == "audio_source" and value not in {"microphone", "loopback"}:
-            raise ConfigurationError("audio_source must be microphone or loopback")
+        if key == "audio_source" and value not in {"microphone", "loopback", "file"}:
+            raise ConfigurationError("audio_source must be microphone, loopback, or file")
+        if key == "audio_file_path" and value:
+            return str(Path(str(value)).expanduser())
         if value is None:
             return None
         return self._parse_value(key, str(value))

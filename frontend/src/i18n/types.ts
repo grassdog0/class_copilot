@@ -194,12 +194,17 @@ export interface Dictionary {
   // Audio
   audio_title: string;
   audio_desc: string;
+  audio_desc_debug: string;
   audio_source: string;
   audio_source_microphone: string;
   audio_source_loopback: string;
+  audio_source_file: string;
   audio_source_loopback_unavailable: string;
   audio_device: string;
   audio_device_default: string;
+  audio_file_path: string;
+  audio_file_path_placeholder: string;
+  audio_file_path_hint: string;
   audio_loadFailed: string;
   audio_test_title: string;
   audio_test_desc: string;

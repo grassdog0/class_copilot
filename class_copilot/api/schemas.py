@@ -35,8 +35,9 @@ class SettingsPatch(BaseModel):
     question_confidence_threshold: float | None = None
     question_cooldown_seconds: int | None = None
     question_similarity_threshold: float | None = None
-    audio_source: Literal["microphone", "loopback"] | None = None
+    audio_source: Literal["microphone", "loopback", "file"] | None = None
     audio_device_id: int | str | None = Field(default=None)
+    audio_file_path: str | None = None
 
 
 class WSMessage(BaseModel):
