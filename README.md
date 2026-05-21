@@ -58,10 +58,22 @@ data/
 ```
 
 ### 前端开发模式
+首次启动自动创建：
+
+```
+data/
+├── class_copilot.db      # SQLite 数据库
+├── .encryption_key       # Fernet 加密密钥
+├── logs/                 # 日志（按模块/日期轮转）
+└── recordings/           # MP3 录音文件
+```
+
+### 前端开发模式
 
 需要热更新时同时启动两端：
+需要热更新时同时启动两端：
 
-```powershell
+```bash
 # 终端 A：后端
 uv run python -m class_copilot
 
