@@ -8,6 +8,7 @@ export type Language = "zh" | "en";
 export type OutputLanguage = "zh" | "en" | "bilingual";
 export type AudioSource = "microphone" | "loopback" | "file";
 export type AsrModel = "qwen3.5-omni-flash-realtime" | "qwen3.5-omni-plus-realtime";
+export type AnswerModel = "qwen3.5-flash" | "qwen3.5-plus";
 
 export interface Course {
   id: string;
@@ -81,6 +82,7 @@ export interface RuntimeSettings {
   language: Language;
   asr_language: OutputLanguage;
   auto_answer_language: OutputLanguage;
+  auto_answer_model: AnswerModel;
   chat_language: OutputLanguage;
   auto_answer_type: AnswerType;
   asr_model: AsrModel;
@@ -104,6 +106,7 @@ export type SettingsPatch = Partial<{
   language: Language;
   asr_language: OutputLanguage;
   auto_answer_language: OutputLanguage;
+  auto_answer_model: AnswerModel;
   chat_language: OutputLanguage;
   auto_answer_type: AnswerType;
   asr_model: AsrModel;

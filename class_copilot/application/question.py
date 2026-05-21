@@ -73,6 +73,8 @@ class AnswerGenerator:
             context=context_text,
             answer_type=answer_type,
             language=settings.auto_answer_language,
+            model=settings.auto_answer_model,
+            enable_thinking=False,
         ):
             full_text += chunk
             await broadcast(

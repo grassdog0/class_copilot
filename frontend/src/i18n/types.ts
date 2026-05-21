@@ -107,6 +107,10 @@ export interface Dictionary {
   chat_inputPlaceholder_idle: string;
   chat_model_quality: string;
   chat_model_fast: string;
+  chat_thinking_on: string;
+  chat_thinking_off: string;
+  chat_thinking_on_hint: string;
+  chat_thinking_off_hint: string;
   // Sessions list
   sessions_title: string;
   sessions_search: string;
@@ -172,6 +176,8 @@ export interface Dictionary {
   model_autoAnswerType_hint: string;
   model_field_autoAnswerLanguage: string;
   model_autoAnswerLanguage_hint: string;
+  model_field_autoAnswerModel: string;
+  model_autoAnswerModel_hint: string;
   model_field_chatLanguage: string;
   model_chatLanguage_hint: string;
   model_lang_zh: string;

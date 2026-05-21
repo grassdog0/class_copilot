@@ -57,6 +57,7 @@ async def dispatch_ws_message(message, session_service, chat_service, manager) -
                 session_id=session_service.state.session_id,
                 question=question,
                 model_choice=data.get("model"),
+                enable_thinking=bool(data.get("enable_thinking")),
                 broadcast=manager.broadcast,
             )
         elif message.type == "update_auto_stop":

@@ -1,7 +1,7 @@
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Select } from "@/components/ui/Select";
 import { useSettingsStore } from "@/stores/settings";
-import type { AnswerType, AsrModel, OutputLanguage } from "@/api/types";
+import type { AnswerModel, AnswerType, AsrModel, OutputLanguage } from "@/api/types";
 import { Sparkles } from "lucide-react";
 import { useI18n } from "@/i18n";
 
@@ -77,6 +77,20 @@ export function ModelSection() {
             </Select>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               {t.model_autoAnswerLanguage_hint}
+            </p>
+          </Field>
+          <Field label={t.model_field_autoAnswerModel}>
+            <Select
+              value={settings.auto_answer_model}
+              onChange={(event) => {
+                void update({ auto_answer_model: event.target.value as AnswerModel });
+              }}
+            >
+              <option value="qwen3.5-flash">qwen3.5-flash</option>
+              <option value="qwen3.5-plus">qwen3.5-plus</option>
+            </Select>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {t.model_autoAnswerModel_hint}
             </p>
           </Field>
           <Field label={t.model_field_chatLanguage}>

@@ -11,7 +11,11 @@ class FakeLLM:
         self.detect_calls = 0
         self.detect_contexts: list[str] = []
         self.answer_languages: list[str] = []
+        self.answer_models: list[str] = []
+        self.answer_thinking: list[bool] = []
         self.chat_languages: list[str] = []
+        self.chat_thinking: list[bool] = []
+        self.chat_contexts: list[str] = []
         self.generated_questions: list[str] = []
         self.detected = DetectedQuestion(
             question_text="什么是向量空间？",
@@ -36,9 +40,13 @@ class FakeLLM:
         context: str | None,
         answer_type: str,
         language: str,
+        model: str,
+        enable_thinking: bool,
     ) -> AsyncIterator[str]:
         self.generated_questions.append(question)
         self.answer_languages.append(language)
+        self.answer_models.append(model)
+        self.answer_thinking.append(enable_thinking)
         yield "向量空间是"
         yield "满足线性运算封闭的集合。"
 
@@ -48,6 +56,10 @@ class FakeLLM:
         messages: Sequence[ChatMessage],
         model: str,
         language: str,
+        enable_thinking: bool,
+        context: str,
     ) -> AsyncIterator[str]:
         self.chat_languages.append(language)
+        self.chat_thinking.append(enable_thinking)
+        self.chat_contexts.append(context)
         yield "这是主动回答。"

@@ -74,6 +74,8 @@ class DashScopeCompatibleLLM:
         context: str | None,
         answer_type: str,
         language: str,
+        model: str,
+        enable_thinking: bool,
     ) -> AsyncIterator[str]:
         if language == "en":
             style = (
@@ -97,7 +99,11 @@ class DashScopeCompatibleLLM:
             {"role": "system", "content": f"你是听课助手。{style}不要编造课堂上下文之外的信息。"},
             {"role": "user", "content": f"课堂上下文：\n{context or ''}\n\n问题：{question}"},
         ]
-        async for chunk in self._stream(model="qwen3.5-flash", messages=messages):
+        async for chunk in self._stream(
+            model=model,
+            messages=messages,
+            enable_thinking=enable_thinking,
+        ):
             yield chunk
 
     async def chat(
@@ -106,26 +112,34 @@ class DashScopeCompatibleLLM:
         messages: Sequence[ChatMessage],
         model: str,
         language: str,
+        enable_thinking: bool,
+        context: str,
     ) -> AsyncIterator[str]:
         system = "你是听课助手，用中文回答；回答要结合当前课堂记录，无法确定时说明不确定。"
         if language == "en":
             system = "You are a class copilot. Answer in English. Use the lecture context and say when uncertain."
         elif language == "bilingual":
             system = "你是听课助手。请用中文和英文双语回答；回答要结合当前课堂记录，无法确定时说明不确定。"
-        payload = [{"role": "system", "content": system}] + [
+        payload = [{"role": "system", "content": f"{system}\n\n课堂上下文：\n{context}"}] + [
             {"role": item.role, "content": item.content} for item in messages
         ]
-        async for chunk in self._stream(model=model, messages=payload):
+        async for chunk in self._stream(model=model, messages=payload, enable_thinking=enable_thinking):
             yield chunk
 
-    async def _stream(self, *, model: str, messages: list[dict[str, str]]) -> AsyncIterator[str]:
+    async def _stream(
+        self,
+        *,
+        model: str,
+        messages: list[dict[str, str]],
+        enable_thinking: bool,
+    ) -> AsyncIterator[str]:
         client = self._require_client()
         stream = await client.chat.completions.create(
             model=model,
             messages=messages,
             stream=True,
             temperature=0.2,
-            extra_body={"enable_thinking": False},
+            extra_body={"enable_thinking": enable_thinking},
         )
         async for event in stream:
             if not event.choices:

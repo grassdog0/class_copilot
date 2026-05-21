@@ -13,7 +13,12 @@ def test_websocket_status_and_chat_flow(app):
     course = client.post("/api/courses", json={"name": "物理"}).json()
     settings = client.patch(
         "/api/settings",
-        json={"asr_language": "bilingual", "auto_answer_language": "en", "chat_language": "bilingual"},
+        json={
+            "asr_language": "bilingual",
+            "auto_answer_language": "en",
+            "auto_answer_model": "qwen3.5-plus",
+            "chat_language": "bilingual",
+        },
     )
     assert settings.status_code == 200
     with client.websocket_connect("/ws") as ws:
@@ -36,7 +41,12 @@ def test_websocket_status_and_chat_flow(app):
         assert app.state.fake_asr.started_languages[-1] == "bilingual"
         assert app.state.fake_asr.manual_turn_detection is True
 
-        ws.send_json({"type": "chat", "data": {"question": "解释一下", "model": "fast"}})
+        ws.send_json(
+            {
+                "type": "chat",
+                "data": {"question": "解释一下", "model": "fast", "enable_thinking": True},
+            }
+        )
         seen_complete = False
         for _ in range(5):
             message = ws.receive_json()
@@ -45,6 +55,10 @@ def test_websocket_status_and_chat_flow(app):
                 break
         assert seen_complete
         assert app.state.fake_llm.chat_languages[-1] == "bilingual"
+        assert app.state.fake_llm.chat_thinking[-1] is True
+        context = app.state.fake_llm.chat_contexts[-1]
+        assert "解释一下" in context
+        assert context.startswith("user: 解释一下")
 
         ws.send_json({"type": "stop_listening", "data": {}})
         stopped = ws.receive_json()
@@ -83,6 +97,8 @@ def test_force_answer_skips_question_detection(app):
         assert seen_answer
         assert app.state.fake_llm.detect_calls == 0
         assert app.state.fake_llm.answer_languages[-1] == "bilingual"
+        assert app.state.fake_llm.answer_models[-1] == "qwen3.5-flash"
+        assert app.state.fake_llm.answer_thinking[-1] is False
 
 
 def test_file_audio_uses_same_manual_turn_detection_as_microphone(app):

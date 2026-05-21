@@ -22,6 +22,7 @@ class SettingsPatch(BaseModel):
     language: Literal["zh", "en"] | None = None
     asr_language: Literal["zh", "en", "bilingual"] | None = None
     auto_answer_language: Literal["zh", "en", "bilingual"] | None = None
+    auto_answer_model: Literal["qwen3.5-flash", "qwen3.5-plus"] | None = None
     chat_language: Literal["zh", "en", "bilingual"] | None = None
     auto_answer_type: Literal["brief", "detailed"] | None = None
     asr_model: Literal["qwen3.5-omni-flash-realtime", "qwen3.5-omni-plus-realtime"] | None = None

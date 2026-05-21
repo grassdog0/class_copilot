@@ -19,6 +19,7 @@ class RuntimeSettings:
     language: str = "zh"
     asr_language: str = "zh"
     auto_answer_language: str = "zh"
+    auto_answer_model: str = "qwen3.5-flash"
     chat_language: str = "zh"
     auto_answer_type: str = "brief"
     asr_model: str = "qwen3.5-omni-flash-realtime"
@@ -42,6 +43,7 @@ SETTING_TYPES: dict[str, Callable[[str], Any]] = {
     "language": str,
     "asr_language": str,
     "auto_answer_language": str,
+    "auto_answer_model": str,
     "chat_language": str,
     "auto_answer_type": str,
     "asr_model": str,
@@ -160,6 +162,8 @@ class SettingsService:
             raise ConfigurationError(f"{key} must be zh, en, or bilingual")
         if key == "auto_answer_type" and value not in {"brief", "detailed"}:
             raise ConfigurationError("auto_answer_type must be brief or detailed")
+        if key == "auto_answer_model" and value not in {"qwen3.5-flash", "qwen3.5-plus"}:
+            raise ConfigurationError("auto_answer_model must be qwen3.5-flash or qwen3.5-plus")
         if key == "asr_model" and value not in {
             "qwen3.5-omni-flash-realtime",
             "qwen3.5-omni-plus-realtime",

@@ -14,6 +14,7 @@ export interface OutboundMessages {
   chat: {
     question: string;
     model: "fast" | "quality" | null;
+    enable_thinking: boolean;
   };
   update_auto_stop: {
     seconds: number;

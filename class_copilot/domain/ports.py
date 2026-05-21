@@ -65,6 +65,8 @@ class LLMPort(Protocol):
         context: str | None,
         answer_type: str,
         language: str,
+        model: str,
+        enable_thinking: bool,
     ) -> AsyncIterator[str]: ...
 
     def chat(
@@ -73,4 +75,6 @@ class LLMPort(Protocol):
         messages: Sequence[ChatMessage],
         model: str,
         language: str,
+        enable_thinking: bool,
+        context: str,
     ) -> AsyncIterator[str]: ...

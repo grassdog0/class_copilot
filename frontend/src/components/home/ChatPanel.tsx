@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Send, MessageCircle, Zap, Sparkles } from "lucide-react";
+import { Send, MessageCircle, Zap, Sparkles, Brain } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useChatStore } from "@/stores/chat";
 import { useSessionStore } from "@/stores/session";
@@ -17,6 +17,7 @@ export function ChatPanel() {
   const send = useWsSend();
   const [input, setInput] = useState("");
   const [model, setModel] = useState<ModelChoice>("quality");
+  const [enableThinking, setEnableThinking] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { t } = useI18n();
 
@@ -30,7 +31,7 @@ export function ChatPanel() {
     const trimmed = input.trim();
     if (!trimmed || !isListening) return;
     appendUser(trimmed);
-    send("chat", { question: trimmed, model });
+    send("chat", { question: trimmed, model, enable_thinking: enableThinking });
     setInput("");
   };
 
@@ -41,7 +42,10 @@ export function ChatPanel() {
           <MessageCircle size={14} className="text-slate-500 dark:text-slate-400" />
           <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t.chat_panel_title}</span>
         </div>
-        <ModelToggle value={model} onChange={setModel} />
+        <div className="flex items-center gap-2">
+          <ModelToggle value={model} onChange={setModel} />
+          <ThinkingToggle value={enableThinking} onChange={setEnableThinking} />
+        </div>
       </div>
       <div ref={scrollRef} className="card-body min-h-0 flex-1 space-y-3 overflow-y-auto pb-4">
         {messages.length === 0 ? (
@@ -157,6 +161,32 @@ function ToggleButton({
     >
       {icon}
       {label}
+    </button>
+  );
+}
+
+function ThinkingToggle({
+  value,
+  onChange,
+}: {
+  value: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!value)}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs transition-colors",
+        value
+          ? "border-brand-300 bg-brand-50 text-brand-700 dark:border-brand-600 dark:bg-brand-900/30 dark:text-brand-300"
+          : "border-slate-200 bg-slate-50 text-slate-500 hover:text-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
+      )}
+      title={value ? t.chat_thinking_on_hint : t.chat_thinking_off_hint}
+    >
+      <Brain size={12} />
+      {value ? t.chat_thinking_on : t.chat_thinking_off}
     </button>
   );
 }

@@ -21,12 +21,14 @@ async def test_courses_settings_and_session_export(client, app):
         json={
             "asr_language": "bilingual",
             "auto_answer_language": "en",
+            "auto_answer_model": "qwen3.5-plus",
             "chat_language": "zh",
         },
     )
     assert patched.status_code == 200
     assert patched.json()["asr_language"] == "bilingual"
     assert patched.json()["auto_answer_language"] == "en"
+    assert patched.json()["auto_answer_model"] == "qwen3.5-plus"
     assert patched.json()["chat_language"] == "zh"
 
     legacy = await client.patch("/api/settings", json={"language": "en"})

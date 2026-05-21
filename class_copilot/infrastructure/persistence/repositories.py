@@ -330,6 +330,15 @@ class ChatRepository:
         result = await self.db.execute(stmt)
         return list(reversed(result.scalars().all()))
 
+    async def all(self, session_id: str) -> list[orm.ChatMessageModel]:
+        stmt = (
+            select(orm.ChatMessageModel)
+            .where(orm.ChatMessageModel.session_id == session_id)
+            .order_by(orm.ChatMessageModel.created_at.asc())
+        )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
 
 class SettingsRepository:
     def __init__(self, db: AsyncSession) -> None:
